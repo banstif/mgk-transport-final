@@ -14,10 +14,12 @@ import {
   Users,
   Filter,
   Loader2,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
 import { useChauffeurs, useDeleteChauffeur } from "@/hooks/use-queries";
 import { formatCurrency } from "@/lib/format";
-import { TypeContrat, TypeSalaire, type Chauffeur } from "@/types";
+import { TypeContrat, TypeSalaire, type Chauffeur, type SalaireActuel } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -95,6 +97,51 @@ function getSalaireTypeLabel(type: TypeSalaire): string {
     PAR_TOURNEE: "Par tournée",
   };
   return labels[type];
+}
+
+// Current Month Salary Badge
+function SalaireMoisBadge({ salaireActuel }: { salaireActuel?: SalaireActuel | null }) {
+  const now = new Date();
+  const moisActuel = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  
+  if (!salaireActuel) {
+    return (
+      <div className="flex flex-col gap-1">
+        <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200 w-fit">
+          Non calculé
+        </Badge>
+        <span className="text-xs text-muted-foreground capitalize">{moisActuel}</span>
+      </div>
+    );
+  }
+  
+  if (salaireActuel.paye) {
+    return (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1">
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 w-fit">
+            <CheckCircle className="mr-1 h-3 w-3" />
+            Payé
+          </Badge>
+        </div>
+        <span className="text-sm font-semibold text-green-700">
+          {formatCurrency(salaireActuel.montantNet)}
+        </span>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="flex flex-col gap-1">
+      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 w-fit">
+        <Clock className="mr-1 h-3 w-3" />
+        En attente
+      </Badge>
+      <span className="text-sm font-semibold text-amber-700">
+        {formatCurrency(salaireActuel.montantNet)}
+      </span>
+    </div>
+  );
 }
 
 // Props Interface
@@ -278,7 +325,8 @@ export function ChauffeursList({
                   <TableHead className="font-semibold">CIN</TableHead>
                   <TableHead className="font-semibold">Téléphone</TableHead>
                   <TableHead className="font-semibold">Type contrat</TableHead>
-                  <TableHead className="font-semibold">Salaire</TableHead>
+                  <TableHead className="font-semibold">Salaire base</TableHead>
+                  <TableHead className="font-semibold">Salaire du mois</TableHead>
                   <TableHead className="font-semibold">Statut</TableHead>
                   <TableHead className="font-semibold text-right">Actions</TableHead>
                 </TableRow>
@@ -287,7 +335,7 @@ export function ChauffeursList({
                 {filteredChauffeurs.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="h-32 text-center text-muted-foreground"
                     >
                       {search || statusFilter !== "all"
@@ -321,6 +369,9 @@ export function ChauffeursList({
                             {getSalaireTypeLabel(chauffeur.typeSalaire)}
                           </span>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <SalaireMoisBadge salaireActuel={chauffeur.salaireActuel} />
                       </TableCell>
                       <TableCell>
                         <StatusBadge actif={chauffeur.actif} />

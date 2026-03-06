@@ -87,7 +87,13 @@ export async function PUT(
     }
 
     if (date !== undefined) {
-      updateData.date = new Date(date);
+      // Parse date and ensure it's stored as UTC midnight
+      if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = date.split('-').map(Number);
+        updateData.date = new Date(Date.UTC(year, month - 1, day));
+      } else {
+        updateData.date = new Date(date);
+      }
     }
 
     // Update prime

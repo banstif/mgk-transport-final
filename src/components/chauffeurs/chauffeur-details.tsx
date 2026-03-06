@@ -381,24 +381,6 @@ export function ChauffeurDetails({
     }
   };
 
-  const handleRembourserAvance = async (avance: Avance) => {
-    if (!chauffeurId) return;
-    try {
-      await updateAvanceMutation.mutateAsync({
-        id: avance.id,
-        chauffeurId,
-        data: { rembourse: true },
-      });
-      toast({ title: "Succès", description: "Avance marquée comme remboursée" });
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la mise à jour de l'avance",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleDelete = async () => {
     if (!chauffeur) return;
     try {
@@ -663,58 +645,71 @@ export function ChauffeurDetails({
 
               {primes && primes.length > 0 ? (
                 <div className="space-y-2">
-                  {primes.map((prime) => (
-                    <Card key={prime.id}>
-                      <CardContent className="flex items-center justify-between py-3">
-                        <div className="flex-1">
+                  {primes.map((prime) => {
+                    // Check if this prime's month has a paid salary
+                    const primeDate = new Date(prime.date);
+                    const primeMonth = primeDate.getMonth() + 1;
+                    const primeYear = primeDate.getFullYear();
+                    const isPaidSalary = chauffeur.salaires?.some(
+                      s => s.mois === primeMonth && s.annee === primeYear && s.paye
+                    );
+                    const isLocked = prime.comptabilise || isPaidSalary;
+                    
+                    return (
+                      <Card key={prime.id}>
+                        <CardContent className="flex items-center justify-between py-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{prime.motif}</p>
+                              {prime.comptabilise ? (
+                                <Badge className="bg-blue-100 text-blue-800">
+                                  Comptabilisée
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-green-100 text-green-800">
+                                  En attente
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(prime.date)}
+                            </p>
+                          </div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium">{prime.motif}</p>
-                            {prime.comptabilise ? (
-                              <Badge className="bg-blue-100 text-blue-800">
-                                Comptabilisée
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-green-100 text-green-800">
-                                En attente
-                              </Badge>
+                            <span className="text-green-600 font-semibold">
+                              +{formatCurrency(prime.montant)}
+                            </span>
+                            {!isLocked && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditPrimeDialog(prime)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Modifier
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => {
+                                      setSelectedPrime(prime);
+                                      setDeletePrimeDialogOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Supprimer
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {formatDate(prime.date)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-green-600 font-semibold">
-                            +{formatCurrency(prime.montant)}
-                          </span>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditPrimeDialog(prime)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Modifier
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => {
-                                  setSelectedPrime(prime);
-                                  setDeletePrimeDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Supprimer
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               ) : (
                 <Card>
@@ -741,67 +736,71 @@ export function ChauffeurDetails({
 
               {avances && avances.length > 0 ? (
                 <div className="space-y-2">
-                  {avances.map((avance) => (
-                    <Card key={avance.id}>
-                      <CardContent className="flex items-center justify-between py-3">
-                        <div className="flex-1">
+                  {avances.map((avance) => {
+                    // Check if this avance's month has a paid salary
+                    const avanceDate = new Date(avance.date);
+                    const avanceMonth = avanceDate.getMonth() + 1;
+                    const avanceYear = avanceDate.getFullYear();
+                    const isPaidSalary = chauffeur.salaires?.some(
+                      s => s.mois === avanceMonth && s.annee === avanceYear && s.paye
+                    );
+                    const isLocked = avance.rembourse || isPaidSalary;
+                    
+                    return (
+                      <Card key={avance.id}>
+                        <CardContent className="flex items-center justify-between py-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-red-600">
+                                {formatCurrency(avance.montant)}
+                              </span>
+                              {avance.rembourse ? (
+                                <Badge className="bg-green-100 text-green-800">
+                                  Remboursée
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-amber-100 text-amber-800">
+                                  En cours
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(avance.date)}
+                            </p>
+                          </div>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-red-600">
-                              {formatCurrency(avance.montant)}
-                            </span>
-                            {avance.rembourse ? (
-                              <Badge className="bg-green-100 text-green-800">
-                                Remboursée
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-amber-100 text-amber-800">
-                                En cours
-                              </Badge>
+                            {/* Removed "Remboursée" button - automatically handled by salary payment */}
+                            {!isLocked && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditAvanceDialog(avance)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Modifier
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => {
+                                      setSelectedAvance(avance);
+                                      setDeleteAvanceDialogOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Supprimer
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {formatDate(avance.date)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!avance.rembourse && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRembourserAvance(avance)}
-                              disabled={updateAvanceMutation.isPending}
-                            >
-                              Remboursée
-                            </Button>
-                          )}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditAvanceDialog(avance)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Modifier
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => {
-                                  setSelectedAvance(avance);
-                                  setDeleteAvanceDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Supprimer
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               ) : (
                 <Card>

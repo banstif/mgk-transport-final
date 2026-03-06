@@ -320,6 +320,7 @@ export function useCreatePrime() {
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.primes, chauffeurId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
     },
   });
 }
@@ -334,6 +335,8 @@ export function useUpdatePrime() {
       }),
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.primes, chauffeurId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
     },
   });
 }
@@ -345,6 +348,8 @@ export function useDeletePrime() {
       fetchApi<ApiResponse<void>>(`/chauffeurs/${chauffeurId}/primes/${id}`, { method: 'DELETE' }),
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.primes, chauffeurId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
     },
   });
 }
@@ -372,6 +377,8 @@ export function useCreateAvance() {
       }),
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.avances, chauffeurId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
     },
   });
 }
@@ -386,6 +393,8 @@ export function useUpdateAvance() {
       }),
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.avances, chauffeurId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
     },
   });
 }
@@ -397,6 +406,8 @@ export function useDeleteAvance() {
       fetchApi<ApiResponse<void>>(`/chauffeurs/${chauffeurId}/avances/${id}`, { method: 'DELETE' }),
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.avances, chauffeurId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
     },
   });
 }
@@ -436,7 +447,16 @@ export function usePayerSalaire() {
     mutationFn: ({ id, chauffeurId }: { id: string; chauffeurId: string }) =>
       fetchApi<ApiResponse<any>>(`/chauffeurs/${chauffeurId}/salaires/${id}/payer`, { method: 'PUT' }),
     onSuccess: (_, { chauffeurId }) => {
+      // Invalider les salaires du chauffeur
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider la liste des chauffeurs pour mettre à jour salaireActuel
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Invalider le chauffeur individuel
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      // Invalider les primes pour mettre à jour l'état comptabilise
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.primes, chauffeurId] });
+      // Invalider les avances pour mettre à jour l'état rembourse
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.avances, chauffeurId] });
     },
   });
 }
@@ -451,6 +471,9 @@ export function useCreateSalaire() {
       }),
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider la liste des chauffeurs pour mettre à jour salaireActuel
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
     },
   });
 }
@@ -465,6 +488,9 @@ export function useUpdateSalaire() {
       }),
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider la liste des chauffeurs pour mettre à jour salaireActuel
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
     },
   });
 }
@@ -476,6 +502,9 @@ export function useDeleteSalaire() {
       fetchApi<ApiResponse<void>>(`/chauffeurs/${chauffeurId}/salaires/${id}`, { method: 'DELETE' }),
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider la liste des chauffeurs pour mettre à jour salaireActuel
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
     },
   });
 }
@@ -506,6 +535,12 @@ export function useCreateDocument() {
     },
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.documents, chauffeurId] });
+      // Invalider le chauffeur pour mettre à jour _count.documents
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Vérifier les alertes de documents
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -523,6 +558,11 @@ export function useUpdateDocument() {
     },
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.documents, chauffeurId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Vérifier les alertes de documents
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -534,6 +574,11 @@ export function useDeleteDocument() {
       fetchApi<ApiResponse<void>>(`/chauffeurs/${chauffeurId}/documents/${id}`, { method: 'DELETE' }),
     onSuccess: (_, { chauffeurId }) => {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.documents, chauffeurId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Vérifier les alertes de documents
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -734,6 +779,9 @@ export function useCreateDocumentVehicule() {
     onSuccess: (_, { vehiculeId }) => {
       queryClient.invalidateQueries({ queryKey: ['documentsVehicule', vehiculeId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+      // Vérifier les alertes de documents véhicules
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -752,6 +800,9 @@ export function useUpdateDocumentVehicule() {
     onSuccess: (_, { vehiculeId }) => {
       queryClient.invalidateQueries({ queryKey: ['documentsVehicule', vehiculeId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+      // Vérifier les alertes de documents véhicules
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -764,6 +815,9 @@ export function useDeleteDocumentVehicule() {
     onSuccess: (_, { vehiculeId }) => {
       queryClient.invalidateQueries({ queryKey: ['documentsVehicule', vehiculeId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+      // Vérifier les alertes de documents véhicules
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -889,6 +943,9 @@ export function useCreateFacture() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.factures });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats() });
+      // Vérifier les alertes de factures impayées
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -904,6 +961,9 @@ export function useUpdateFacture() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.facture(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.factures });
+      // Vérifier les alertes de factures impayées
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -915,6 +975,9 @@ export function useDeleteFacture() {
       fetchApi<ApiResponse<void>>(`/factures/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.factures });
+      // Vérifier les alertes de factures impayées
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -945,6 +1008,9 @@ export function useCreatePaiement() {
       queryClient.invalidateQueries({ queryKey: queryKeys.facture(factureId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.factures });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats() });
+      // Vérifier les alertes de factures impayées (le paiement peut changer le statut)
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -1049,6 +1115,9 @@ export function useCreateEntretien() {
     onSuccess: (_, { vehiculeId }) => {
       queryClient.invalidateQueries({ queryKey: ['entretiens', vehiculeId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+      // Vérifier les alertes d'entretiens
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -1064,6 +1133,9 @@ export function useUpdateEntretien() {
     onSuccess: (_, { vehiculeId }) => {
       queryClient.invalidateQueries({ queryKey: ['entretiens', vehiculeId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+      // Vérifier les alertes d'entretiens
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }
@@ -1076,6 +1148,9 @@ export function useDeleteEntretien() {
     onSuccess: (_, { vehiculeId }) => {
       queryClient.invalidateQueries({ queryKey: ['entretiens', vehiculeId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+      // Vérifier les alertes d'entretiens
+      fetch('/api/alertes/check-documents', { method: 'POST' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
     },
   });
 }

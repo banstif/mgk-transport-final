@@ -30,28 +30,32 @@ export async function GET(
     
     const moisNum = parseInt(mois, 10);
     const anneeNum = parseInt(annee, 10);
-    
+
+    // Create date range for the month (using UTC to avoid timezone issues)
+    const startDate = new Date(Date.UTC(anneeNum, moisNum - 1, 1));
+    const endDate = new Date(Date.UTC(anneeNum, moisNum, 1));
+
     // Check if chauffeur exists
     const chauffeur = await db.chauffeur.findUnique({
       where: { id },
       select: { id: true },
     });
-    
+
     if (!chauffeur) {
       return NextResponse.json(
         { success: false, error: 'Chauffeur non trouvé' },
         { status: 404 }
       );
     }
-    
+
     // Get primes for the month (only non-comptabilized)
     const primes = await db.prime.findMany({
       where: {
         chauffeurId: id,
         comptabilise: false,  // Only non-comptabilized primes
         date: {
-          gte: new Date(anneeNum, moisNum - 1, 1),
-          lt: new Date(anneeNum, moisNum, 1),
+          gte: startDate,
+          lt: endDate,
         },
       },
       select: {
@@ -61,15 +65,15 @@ export async function GET(
         date: true,
       },
     });
-    
+
     // Get avances for the month (only non-reimbursed)
     const avances = await db.avance.findMany({
       where: {
         chauffeurId: id,
         rembourse: false,
         date: {
-          gte: new Date(anneeNum, moisNum - 1, 1),
-          lt: new Date(anneeNum, moisNum, 1),
+          gte: startDate,
+          lt: endDate,
         },
       },
       select: {

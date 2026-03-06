@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { useAlertes } from "@/hooks/use-queries"
+import { useAlertes, useCheckDocumentAlerts } from "@/hooks/use-queries"
 
 // Navigation items
 const navigationItems = [
@@ -75,6 +75,16 @@ export function MainLayout({ children, activePath = "/" }: MainLayoutProps) {
 
   // Fetch alertes for notification badge
   const { data: alertes } = useAlertes({ lu: false })
+  
+  // Check alerts mutation
+  const checkAlertsMutation = useCheckDocumentAlerts()
+
+  // Check alerts on mount (application startup)
+  React.useEffect(() => {
+    if (mounted) {
+      checkAlertsMutation.mutate()
+    }
+  }, [mounted])
 
   // Handle hydration
   React.useEffect(() => {

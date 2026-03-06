@@ -126,12 +126,23 @@ export async function POST(
       );
     }
     
+    // Parse date and ensure it's stored as UTC midnight
+    // If date is a string like "2026-03-15", parse it as UTC
+    let parsedDate: Date;
+    if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Date string in YYYY-MM-DD format - parse as UTC
+      const [year, month, day] = date.split('-').map(Number);
+      parsedDate = new Date(Date.UTC(year, month - 1, day));
+    } else {
+      parsedDate = new Date(date);
+    }
+
     // Create avance
     const avance = await db.avance.create({
       data: {
         chauffeurId: id,
         montant,
-        date: new Date(date),
+        date: parsedDate,
         rembourse: false,
       },
     });

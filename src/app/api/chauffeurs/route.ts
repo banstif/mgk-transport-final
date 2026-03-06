@@ -47,6 +47,11 @@ export async function GET(request: NextRequest): Promise<NextResponse<PaginatedR
     // Get total count
     const total = await db.chauffeur.count({ where });
     
+    // Get current month and year
+    const now = new Date();
+    const currentMois = now.getMonth() + 1;
+    const currentAnnee = now.getFullYear();
+
     // Get chauffeurs with pagination
     const chauffeurs = await db.chauffeur.findMany({
       where,
@@ -75,13 +80,42 @@ export async function GET(request: NextRequest): Promise<NextResponse<PaginatedR
             documents: true,
           },
         },
+        // Include salary for current month
+        salaires: {
+          where: {
+            mois: currentMois,
+            annee: currentAnnee,
+          },
+          select: {
+            id: true,
+            mois: true,
+            annee: true,
+            montantBase: true,
+            montantPrimes: true,
+            montantAvances: true,
+            montantNet: true,
+            paye: true,
+            datePaiement: true,
+          },
+        },
       },
     });
-    
+
+    // Transform data to include current month salary info
+    const chauffeursWithSalaire = chauffeurs.map((chauffeur) => {
+      const salaireActuel = chauffeur.salaires?.[0] || null;
+      // Remove the salaires array from the response to keep it clean
+      const { salaires: _, ...chauffeurData } = chauffeur;
+      return {
+        ...chauffeurData,
+        salaireActuel,
+      };
+    });
+
     const totalPages = Math.ceil(total / pageSize);
-    
+
     return NextResponse.json({
-      data: chauffeurs,
+      data: chauffeursWithSalaire,
       total,
       page,
       pageSize,

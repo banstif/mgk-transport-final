@@ -48,6 +48,10 @@ export async function PUT(
 
     const { mois, annee } = existingSalaire;
 
+    // Create date range for the month (using UTC to avoid timezone issues)
+    const startDate = new Date(Date.UTC(annee, mois - 1, 1));
+    const endDate = new Date(Date.UTC(annee, mois, 1));
+
     // Use transaction to update salary and mark primes/avances
     const [salaire] = await db.$transaction([
       // Update salaire to mark as paid
@@ -64,8 +68,8 @@ export async function PUT(
           chauffeurId,
           comptabilise: false,
           date: {
-            gte: new Date(annee, mois - 1, 1),
-            lt: new Date(annee, mois, 1),
+            gte: startDate,
+            lt: endDate,
           },
         },
         data: {
@@ -78,8 +82,8 @@ export async function PUT(
           chauffeurId,
           rembourse: false,
           date: {
-            gte: new Date(annee, mois - 1, 1),
-            lt: new Date(annee, mois, 1),
+            gte: startDate,
+            lt: endDate,
           },
         },
         data: {

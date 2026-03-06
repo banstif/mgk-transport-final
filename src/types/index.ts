@@ -92,6 +92,19 @@ export interface Log {
   createdAt: Date;
 }
 
+// Salaire du mois actuel (pour l'affichage dans la liste)
+export interface SalaireActuel {
+  id: string;
+  mois: number;
+  annee: number;
+  montantBase: number;
+  montantPrimes: number;
+  montantAvances: number;
+  montantNet: number;
+  paye: boolean;
+  datePaiement?: Date | null;
+}
+
 export interface Chauffeur {
   id: string;
   nom: string;
@@ -114,6 +127,7 @@ export interface Chauffeur {
   primes?: Prime[];
   avances?: Avance[];
   documents?: DocumentChauffeur[];
+  salaireActuel?: SalaireActuel | null;
   _count?: {
     salaires?: number;
     primes?: number;

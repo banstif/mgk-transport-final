@@ -402,7 +402,7 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <div>
               <p className="text-xs text-muted-foreground">Type</p>
               <p className="font-medium">
@@ -416,20 +416,16 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
               <p className="font-medium">{formatCurrency(chauffeur.montantSalaire)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">CNSS Mensuel</p>
-              <p className="font-medium text-red-600">-{formatCurrency(chauffeur.montantCNSS || 0)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Assurance Mensuel</p>
-              <p className="font-medium text-red-600">-{formatCurrency(chauffeur.montantAssurance || 0)}</p>
-            </div>
-            <div>
               <p className="text-xs text-muted-foreground">Type de contrat</p>
               <p className="font-medium">{chauffeur.typeContrat}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Date d'embauche</p>
               <p className="font-medium">{formatDate(chauffeur.dateEmbauche)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">RIB bancaire</p>
+              <p className="font-medium font-mono text-sm">{chauffeur.ribCompte || "Non renseigné"}</p>
             </div>
           </div>
         </CardContent>
@@ -515,10 +511,20 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
                           </Button>
                         </>
                       )}
-                      {salaire.paye && salaire.datePaiement && (
-                        <span className="text-xs text-muted-foreground">
-                          Payé le {formatDate(salaire.datePaiement)}
-                        </span>
+                      {salaire.paye && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {salaire.datePaiement && `Payé le ${formatDate(salaire.datePaiement)}`}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(`/api/chauffeurs/${chauffeur.id}/salaires/${salaire.id}/fiche`, '_blank')}
+                            title="Imprimer la fiche de salaire"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </TableCell>

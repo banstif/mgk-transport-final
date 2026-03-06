@@ -104,6 +104,10 @@ export async function POST(
       );
     }
     
+    // Create date range for the month (using UTC to avoid timezone issues)
+    const startDate = new Date(Date.UTC(annee, mois - 1, 1));
+    const endDate = new Date(Date.UTC(annee, mois, 1));
+
     // Check if chauffeur exists and get salary info + primes/avances of the month
     const chauffeur = await db.chauffeur.findUnique({
       where: { id },
@@ -112,8 +116,8 @@ export async function POST(
           where: {
             comptabilise: false,  // Only non-comptabilized primes
             date: {
-              gte: new Date(annee, mois - 1, 1),
-              lt: new Date(annee, mois, 1),
+              gte: startDate,
+              lt: endDate,
             },
           },
         },
@@ -121,16 +125,16 @@ export async function POST(
           where: {
             rembourse: false,  // Only non-reimbursed avances
             date: {
-              gte: new Date(annee, mois - 1, 1),
-              lt: new Date(annee, mois, 1),
+              gte: startDate,
+              lt: endDate,
             },
           },
         },
         tournées: {
           where: {
             date: {
-              gte: new Date(annee, mois - 1, 1),
-              lt: new Date(annee, mois, 1),
+              gte: startDate,
+              lt: endDate,
             },
           },
         },
