@@ -1,0 +1,561 @@
+// Alert management utilities
+import { db } from '@/lib/db';
+import { TypeAlerte, PrioriteAlerte } from '@prisma/client';
+
+// Document type labels for alerts
+const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  PERMIS_CONDUIRE: 'Permis de conduire',
+  ASSURANCE_CHAUFFEUR: 'Assurance chauffeur',
+  VISITE_MEDICALE: 'Visite médicale',
+  CIN: 'Carte d\'identité nationale',
+};
+
+// Entretien type labels
+const ENTRETIEN_TYPE_LABELS: Record<string, string> = {
+  VIDANGE: 'Vidange',
+  PNEUS: 'Pneus',
+  FREINS: 'Freins',
+  ASSURANCE_VEHICULE: 'Assurance véhicule',
+  VISITE_TECHNIQUE: 'Visite technique',
+  REPARATION: 'Réparation',
+  AUTRE: 'Autre',
+};
+
+// Notification settings interface
+interface NotificationSettings {
+  alertDocumentExpiration: boolean;
+  alertDocumentDays: number;
+  alertFactureRetard: boolean;
+  alertFactureDays: number;
+  alertEntretien: boolean;
+  alertEntretienDays: number;
+  emailNotifications: boolean;
+  emailRecipient: string;
+  pushNotifications: boolean;
+  soundEnabled: boolean;
+}
+
+// Default settings
+const DEFAULT_SETTINGS: NotificationSettings = {
+  alertDocumentExpiration: true,
+  alertDocumentDays: 30,
+  alertFactureRetard: true,
+  alertFactureDays: 7,
+  alertEntretien: true,
+  alertEntretienDays: 15,
+  emailNotifications: false,
+  emailRecipient: '',
+  pushNotifications: true,
+  soundEnabled: true,
+};
+
+// Get document type label
+export function getDocumentTypeLabel(type: string): string {
+  return DOCUMENT_TYPE_LABELS[type] || type;
+}
+
+// Get entretien type label
+export function getEntretienTypeLabel(type: string): string {
+  return ENTRETIEN_TYPE_LABELS[type] || type;
+}
+
+// Get notification settings from database
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  try {
+    const parametres = await db.parametre.findMany({
+      where: {
+        cle: {
+          startsWith: 'NOTIF_',
+        },
+      },
+    });
+
+    const settings = { ...DEFAULT_SETTINGS };
+
+    for (const param of parametres) {
+      switch (param.cle) {
+        case 'NOTIF_DOCUMENT_EXPIRATION':
+          settings.alertDocumentExpiration = param.valeur === 'true';
+          break;
+        case 'NOTIF_DOCUMENT_DAYS':
+          settings.alertDocumentDays = parseInt(param.valeur) || DEFAULT_SETTINGS.alertDocumentDays;
+          break;
+        case 'NOTIF_FACTURE_RETARD':
+          settings.alertFactureRetard = param.valeur === 'true';
+          break;
+        case 'NOTIF_FACTURE_DAYS':
+          settings.alertFactureDays = parseInt(param.valeur) || DEFAULT_SETTINGS.alertFactureDays;
+          break;
+        case 'NOTIF_ENTRETIEN':
+          settings.alertEntretien = param.valeur === 'true';
+          break;
+        case 'NOTIF_ENTRETIEN_DAYS':
+          settings.alertEntretienDays = parseInt(param.valeur) || DEFAULT_SETTINGS.alertEntretienDays;
+          break;
+        case 'NOTIF_EMAIL_ENABLED':
+          settings.emailNotifications = param.valeur === 'true';
+          break;
+        case 'NOTIF_EMAIL_RECIPIENT':
+          settings.emailRecipient = param.valeur;
+          break;
+        case 'NOTIF_PUSH_ENABLED':
+          settings.pushNotifications = param.valeur === 'true';
+          break;
+        case 'NOTIF_SOUND_ENABLED':
+          settings.soundEnabled = param.valeur === 'true';
+          break;
+      }
+    }
+
+    return settings;
+  } catch (error) {
+    console.error('Error loading notification settings:', error);
+    return DEFAULT_SETTINGS;
+  }
+}
+
+// Create alert for expired or expiring document
+export async function createDocumentAlert(
+  documentId: string,
+  chauffeurId: string,
+  documentType: string,
+  dateExpiration: Date,
+  chauffeurNom: string,
+  chauffeurPrenom: string,
+  settings?: NotificationSettings
+): Promise<boolean> {
+  // Get notification settings if not provided
+  if (!settings) {
+    settings = await getNotificationSettings();
+  }
+
+  // Check if document alerts are enabled
+  if (!settings.alertDocumentExpiration) {
+    return false;
+  }
+
+  const now = new Date();
+  const daysUntilExpiration = Math.ceil(
+    (dateExpiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  // Don't create alert for documents expiring after the configured threshold
+  if (daysUntilExpiration > settings.alertDocumentDays) {
+    return false;
+  }
+
+  // Check if an alert already exists for this document
+  const existingAlert = await db.alerte.findFirst({
+    where: {
+      referenceId: documentId,
+      resolute: false,
+    },
+  });
+
+  // Determine priority and messages based on days until expiration
+  let priority: PrioriteAlerte;
+  let titre: string;
+  let message: string;
+
+  if (daysUntilExpiration < 0) {
+    priority = PrioriteAlerte.HAUTE;
+    titre = `Document expiré: ${getDocumentTypeLabel(documentType)}`;
+    message = `Le document "${getDocumentTypeLabel(documentType)}" de ${chauffeurPrenom} ${chauffeurNom} a expiré depuis ${Math.abs(daysUntilExpiration)} jour(s).`;
+  } else if (daysUntilExpiration <= 7) {
+    priority = PrioriteAlerte.HAUTE;
+    titre = `Document expire bientôt: ${getDocumentTypeLabel(documentType)}`;
+    message = `Le document "${getDocumentTypeLabel(documentType)}" de ${chauffeurPrenom} ${chauffeurNom} expire dans ${daysUntilExpiration} jour(s).`;
+  } else {
+    priority = PrioriteAlerte.MOYENNE;
+    titre = `Document expire dans ${daysUntilExpiration} jours: ${getDocumentTypeLabel(documentType)}`;
+    message = `Le document "${getDocumentTypeLabel(documentType)}" de ${chauffeurPrenom} ${chauffeurNom} expire le ${dateExpiration.toLocaleDateString('fr-FR')}.`;
+  }
+
+  // If alert exists and is not resolved, update it
+  if (existingAlert) {
+    await db.alerte.update({
+      where: { id: existingAlert.id },
+      data: {
+        titre,
+        message,
+        priority,
+      },
+    });
+    return false; // No new alert created
+  }
+
+  // Create new alert
+  await db.alerte.create({
+    data: {
+      type: TypeAlerte.DOCUMENT_EXPIRE,
+      titre,
+      message,
+      priority,
+      referenceId: documentId,
+    },
+  });
+
+  // Mark document as alert sent
+  await db.documentChauffeur.update({
+    where: { id: documentId },
+    data: { alerteEnvoyee: true },
+  });
+
+  return true; // New alert created
+}
+
+// Check all chauffeur documents and create alerts if needed
+export async function checkAllDocumentAlerts(): Promise<number> {
+  // Get notification settings
+  const settings = await getNotificationSettings();
+
+  // If document alerts are disabled, resolve all existing document alerts
+  if (!settings.alertDocumentExpiration) {
+    await db.alerte.updateMany({
+      where: {
+        type: TypeAlerte.DOCUMENT_EXPIRE,
+        resolute: false,
+      },
+      data: {
+        resolute: true,
+      },
+    });
+    return 0;
+  }
+
+  const now = new Date();
+  const thresholdDate = new Date(now.getTime() + settings.alertDocumentDays * 24 * 60 * 60 * 1000);
+
+  // Get ALL documents
+  const documents = await db.documentChauffeur.findMany({
+    include: {
+      chauffeur: {
+        select: {
+          nom: true,
+          prenom: true,
+        },
+      },
+    },
+  });
+
+  let alertsCreated = 0;
+
+  for (const doc of documents) {
+    if (!doc.dateExpiration) continue;
+
+    const daysUntilExpiration = Math.ceil(
+      (doc.dateExpiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysUntilExpiration <= settings.alertDocumentDays) {
+      // Document is within threshold - create or update alert
+      const created = await createDocumentAlert(
+        doc.id,
+        doc.chauffeurId,
+        doc.type,
+        doc.dateExpiration,
+        doc.chauffeur.nom,
+        doc.chauffeur.prenom,
+        settings
+      );
+
+      if (created) {
+        alertsCreated++;
+      }
+    } else {
+      // Document is outside new threshold - resolve any existing alert
+      await db.alerte.updateMany({
+        where: {
+          referenceId: doc.id,
+          type: TypeAlerte.DOCUMENT_EXPIRE,
+          resolute: false,
+        },
+        data: {
+          resolute: true,
+        },
+      });
+    }
+  }
+
+  return alertsCreated;
+}
+
+// Delete resolved alerts for documents that have been renewed
+export async function resolveDocumentAlert(documentId: string): Promise<void> {
+  await db.alerte.updateMany({
+    where: {
+      referenceId: documentId,
+      resolute: false,
+    },
+    data: {
+      resolute: true,
+    },
+  });
+}
+
+// Check factures for late payment alerts
+export async function checkFactureAlerts(): Promise<number> {
+  // Get notification settings
+  const settings = await getNotificationSettings();
+
+  // If facture alerts are disabled, resolve all existing facture alerts
+  if (!settings.alertFactureRetard) {
+    await db.alerte.updateMany({
+      where: {
+        type: TypeAlerte.FACTURE_IMPAYEE,
+        resolute: false,
+      },
+      data: {
+        resolute: true,
+      },
+    });
+    return 0;
+  }
+
+  const now = new Date();
+
+  // Get ALL unpaid factures
+  const factures = await db.facture.findMany({
+    where: {
+      statut: 'EN_ATTENTE',
+    },
+    include: {
+      client: {
+        select: {
+          nomEntreprise: true,
+        },
+      },
+    },
+  });
+
+  // Get all facture IDs that are still pending
+  const pendingFactureIds = new Set(factures.map(f => f.id));
+
+  // Resolve alerts for factures that are no longer in EN_ATTENTE status
+  // (paid factures should not have active alerts)
+  await db.alerte.updateMany({
+    where: {
+      type: TypeAlerte.FACTURE_IMPAYEE,
+      resolute: false,
+      referenceId: { notIn: [...pendingFactureIds] },
+    },
+    data: {
+      resolute: true,
+    },
+  });
+
+  let alertsCreated = 0;
+
+  for (const facture of factures) {
+    const daysRetard = Math.ceil(
+      (now.getTime() - facture.dateEcheance.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Facture is past due more than configured days
+    if (daysRetard >= settings.alertFactureDays) {
+      // Check if alert already exists
+      const existingAlert = await db.alerte.findFirst({
+        where: {
+          referenceId: facture.id,
+          type: TypeAlerte.FACTURE_IMPAYEE,
+          resolute: false,
+        },
+      });
+
+      if (existingAlert) {
+        // Update existing alert with current days of delay
+        await db.alerte.update({
+          where: { id: existingAlert.id },
+          data: {
+            titre: `Facture impayée: ${facture.numero}`,
+            message: `La facture ${facture.numero} de ${facture.client.nomEntreprise} est en retard de ${daysRetard} jour(s). Montant: ${facture.montantTTC.toFixed(2)} MAD`,
+          },
+        });
+      } else {
+        await db.alerte.create({
+          data: {
+            type: TypeAlerte.FACTURE_IMPAYEE,
+            titre: `Facture impayée: ${facture.numero}`,
+            message: `La facture ${facture.numero} de ${facture.client.nomEntreprise} est en retard de ${daysRetard} jour(s). Montant: ${facture.montantTTC.toFixed(2)} MAD`,
+            priority: PrioriteAlerte.HAUTE,
+            referenceId: facture.id,
+          },
+        });
+
+        alertsCreated++;
+      }
+    } else {
+      // Facture is no longer past the threshold - resolve any existing alert
+      await db.alerte.updateMany({
+        where: {
+          referenceId: facture.id,
+          type: TypeAlerte.FACTURE_IMPAYEE,
+          resolute: false,
+        },
+        data: {
+          resolute: true,
+        },
+      });
+    }
+  }
+
+  return alertsCreated;
+}
+
+// Check entretiens for upcoming maintenance alerts
+export async function checkEntretienAlerts(): Promise<number> {
+  // Get notification settings
+  const settings = await getNotificationSettings();
+
+  // If entretien alerts are disabled, resolve all existing entretien alerts
+  if (!settings.alertEntretien) {
+    await db.alerte.updateMany({
+      where: {
+        type: TypeAlerte.ENTRETIEN_A_VENIR,
+        resolute: false,
+      },
+      data: {
+        resolute: true,
+      },
+    });
+    return 0;
+  }
+
+  const now = new Date();
+
+  // Get ALL entretiens that have a prochaineDate
+  const entretiens = await db.entretien.findMany({
+    where: {
+      prochaineDate: { not: null },
+    },
+    include: {
+      vehicule: {
+        select: {
+          immatriculation: true,
+          marque: true,
+          modele: true,
+        },
+      },
+    },
+  });
+
+  // Get all entretien IDs that have prochaineDate
+  const entretienWithDateIds = new Set(entretiens.map(e => e.id));
+
+  // Resolve alerts for entretiens without prochaineDate (completed or cancelled)
+  await db.alerte.updateMany({
+    where: {
+      type: TypeAlerte.ENTRETIEN_A_VENIR,
+      resolute: false,
+      referenceId: { notIn: [...entretienWithDateIds] },
+    },
+    data: {
+      resolute: true,
+    },
+  });
+
+  let alertsCreated = 0;
+
+  for (const entretien of entretiens) {
+    if (!entretien.prochaineDate) continue;
+
+    const daysUntilEntretien = Math.ceil(
+      (entretien.prochaineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysUntilEntretien <= settings.alertEntretienDays) {
+      // Entretien is within threshold - create or update alert
+      const existingAlert = await db.alerte.findFirst({
+        where: {
+          referenceId: entretien.id,
+          type: TypeAlerte.ENTRETIEN_A_VENIR,
+          resolute: false,
+        },
+      });
+
+      let priority: PrioriteAlerte;
+      let titre: string;
+      let message: string;
+
+      const vehiculeInfo = `${entretien.vehicule.marque} ${entretien.vehicule.modele} (${entretien.vehicule.immatriculation})`;
+
+      if (daysUntilEntretien < 0) {
+        priority = PrioriteAlerte.HAUTE;
+        titre = `Entretien en retard: ${getEntretienTypeLabel(entretien.type)}`;
+        message = `L'entretien "${getEntretienTypeLabel(entretien.type)}" pour le véhicule ${vehiculeInfo} est en retard de ${Math.abs(daysUntilEntretien)} jour(s).`;
+      } else if (daysUntilEntretien <= 7) {
+        priority = PrioriteAlerte.HAUTE;
+        titre = `Entretien proche: ${getEntretienTypeLabel(entretien.type)}`;
+        message = `L'entretien "${getEntretienTypeLabel(entretien.type)}" pour le véhicule ${vehiculeInfo} est prévu dans ${daysUntilEntretien} jour(s).`;
+      } else {
+        priority = PrioriteAlerte.MOYENNE;
+        titre = `Entretien à venir: ${getEntretienTypeLabel(entretien.type)}`;
+        message = `L'entretien "${getEntretienTypeLabel(entretien.type)}" pour le véhicule ${vehiculeInfo} est prévu le ${entretien.prochaineDate.toLocaleDateString('fr-FR')}.`;
+      }
+
+      if (existingAlert) {
+        // Update existing alert
+        await db.alerte.update({
+          where: { id: existingAlert.id },
+          data: {
+            titre,
+            message,
+            priority,
+          },
+        });
+      } else {
+        // Create new alert
+        await db.alerte.create({
+          data: {
+            type: TypeAlerte.ENTRETIEN_A_VENIR,
+            titre,
+            message,
+            priority,
+            referenceId: entretien.id,
+          },
+        });
+
+        alertsCreated++;
+
+        // Mark entretien as alert sent
+        await db.entretien.update({
+          where: { id: entretien.id },
+          data: { alerteEnvoyee: true },
+        });
+      }
+    } else {
+      // Entretien is outside threshold - resolve any existing alert
+      await db.alerte.updateMany({
+        where: {
+          referenceId: entretien.id,
+          type: TypeAlerte.ENTRETIEN_A_VENIR,
+          resolute: false,
+        },
+        data: {
+          resolute: true,
+        },
+      });
+    }
+  }
+
+  return alertsCreated;
+}
+
+// Check all alerts (documents, factures, entretiens)
+export async function checkAllAlerts(): Promise<{
+  documents: number;
+  factures: number;
+  entretiens: number;
+  total: number;
+}> {
+  const documentAlerts = await checkAllDocumentAlerts();
+  const factureAlerts = await checkFactureAlerts();
+  const entretienAlerts = await checkEntretienAlerts();
+
+  return {
+    documents: documentAlerts,
+    factures: factureAlerts,
+    entretiens: entretienAlerts,
+    total: documentAlerts + factureAlerts + entretienAlerts,
+  };
+}
