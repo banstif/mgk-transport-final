@@ -5,6 +5,8 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { DashboardContent } from "@/components/dashboard/dashboard-content"
 import { ChauffeursContent } from "@/components/chauffeurs/chauffeurs-content"
 import { VehiculesContent } from "@/components/vehicules/vehicules-content"
+import { ClientsContent } from "@/components/clients/clients-content"
+import { FacturesContent } from "@/components/factures/factures-content"
 import { AlertesContent } from "@/components/alertes/alertes-content"
 import { ParametresContent } from "@/components/parametres/parametres-content"
 
@@ -56,23 +58,9 @@ export default function AppPage() {
       case "vehicules":
         return <VehiculesContent />
       case "clients":
-        return (
-          <div className="space-y-6">
-            <div className="flex flex-col gap-2">
-              <h1 className="text-2xl font-bold tracking-tight">Gestion des Clients</h1>
-              <p className="text-muted-foreground">Module en cours de développement...</p>
-            </div>
-          </div>
-        )
+        return <ClientsContent />
       case "facturation":
-        return (
-          <div className="space-y-6">
-            <div className="flex flex-col gap-2">
-              <h1 className="text-2xl font-bold tracking-tight">Facturation</h1>
-              <p className="text-muted-foreground">Module en cours de développement...</p>
-            </div>
-          </div>
-        )
+        return <FacturesContent />
       case "alertes":
         return <AlertesContent />
       case "parametres":

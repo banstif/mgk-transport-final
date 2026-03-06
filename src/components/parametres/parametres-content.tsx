@@ -21,6 +21,8 @@ import {
   MapPin,
   Upload,
   Image as ImageIcon,
+  User,
+  Truck,
 } from "lucide-react";
 import { 
   useParametres, 
@@ -86,6 +88,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import type { TypeDocumentPersonnalise } from "@/types";
+import { TypesEntretienSettings } from "./types-entretien-settings";
 
 // Form Schema for Document Types
 const typeDocumentFormSchema = z.object({
@@ -159,6 +162,435 @@ function DocumentTypeCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// Document Types Settings Component (shared for Chauffeur and Vehicule)
+function DocumentTypesSettings({ categorie }: { categorie: 'CHAUFFEUR' | 'VEHICULE' }) {
+  const { toast } = useToast();
+  const [addTypeDialogOpen, setAddTypeDialogOpen] = useState(false);
+  const [editTypeDialogOpen, setEditTypeDialogOpen] = useState(false);
+  const [deleteTypeDialogOpen, setDeleteTypeDialogOpen] = useState(false);
+  const [selectedType, setSelectedType] = useState<TypeDocumentPersonnalise | null>(null);
+
+  // Queries
+  const { data: typesDocuments = [], isLoading } = useTypesDocuments(categorie);
+
+  // Mutations
+  const createTypeMutation = useCreateTypeDocument();
+  const updateTypeMutation = useUpdateTypeDocument();
+  const deleteTypeMutation = useDeleteTypeDocument();
+
+  // Form
+  const typeForm = useForm<TypeDocumentFormValues>({
+    resolver: zodResolver(typeDocumentFormSchema),
+    defaultValues: {
+      code: "",
+      nom: "",
+      description: "",
+      actif: true,
+    },
+  });
+
+  // Reset form when dialog opens/closes
+  React.useEffect(() => {
+    if (addTypeDialogOpen) {
+      typeForm.reset({ code: "", nom: "", description: "", actif: true });
+    }
+  }, [addTypeDialogOpen, typeForm]);
+
+  React.useEffect(() => {
+    if (editTypeDialogOpen && selectedType) {
+      typeForm.reset({
+        code: selectedType.code,
+        nom: selectedType.nom,
+        description: selectedType.description || "",
+        actif: selectedType.actif,
+      });
+    }
+  }, [editTypeDialogOpen, selectedType, typeForm]);
+
+  // Handlers
+  const onAddSubmit = async (values: TypeDocumentFormValues) => {
+    try {
+      await createTypeMutation.mutateAsync({
+        ...values,
+        categorie,
+      });
+      toast({ title: "Succès", description: "Type de document créé avec succès" });
+      setAddTypeDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Erreur lors de la création",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const onEditSubmit = async (values: TypeDocumentFormValues) => {
+    if (!selectedType) return;
+    try {
+      await updateTypeMutation.mutateAsync({
+        id: selectedType.id,
+        data: values,
+      });
+      toast({ title: "Succès", description: "Type de document mis à jour avec succès" });
+      setEditTypeDialogOpen(false);
+      setSelectedType(null);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la mise à jour",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedType) return;
+    try {
+      await deleteTypeMutation.mutateAsync(selectedType.id);
+      toast({ title: "Succès", description: "Type de document supprimé avec succès" });
+      setDeleteTypeDialogOpen(false);
+      setSelectedType(null);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la suppression",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Predefined types info
+  const predefinedTypes = categorie === 'CHAUFFEUR' 
+    ? [
+        { code: 'PERMIS_CONDUIRE', nom: 'Permis de conduire' },
+        { code: 'ASSURANCE_CHAUFFEUR', nom: 'Assurance chauffeur' },
+        { code: 'VISITE_MEDICALE', nom: 'Visite médicale' },
+        { code: 'CIN', nom: 'Carte d\'identité nationale' },
+      ]
+    : [
+        { code: 'ASSURANCE', nom: 'Assurance' },
+        { code: 'VISITE_TECHNIQUE', nom: 'Visite technique' },
+        { code: 'CARTE_GRISE', nom: 'Carte grise' },
+      ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            {categorie === 'CHAUFFEUR' ? (
+              <>
+                <User className="h-5 w-5" />
+                Types de documents - Chauffeurs
+              </>
+            ) : (
+              <>
+                <Truck className="h-5 w-5" />
+                Types de documents - Véhicules
+              </>
+            )}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Gérez les types de documents personnalisés pour les {categorie === 'CHAUFFEUR' ? 'chauffeurs' : 'véhicules'}
+          </p>
+        </div>
+        <Button
+          onClick={() => setAddTypeDialogOpen(true)}
+          className="bg-primary hover:bg-primary/90"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Ajouter un type
+        </Button>
+      </div>
+
+      {/* Predefined Types Info */}
+      <Card className="border-blue-200 bg-blue-50/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-5 w-5 text-blue-600" />
+            Types prédéfinis
+          </CardTitle>
+          <CardDescription>
+            Ces types sont disponibles par défaut et ne peuvent pas être modifiés
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {predefinedTypes.map((type) => (
+              <div key={type.code} className="flex items-center gap-2 p-2 bg-white rounded border">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">{type.nom}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Custom Types List */}
+      <div>
+        <h4 className="font-medium mb-3">Types personnalisés</h4>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
+        ) : typesDocuments.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <FilePlus className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+              <p className="text-muted-foreground text-center">
+                Aucun type de document personnalisé
+              </p>
+              <p className="text-sm text-muted-foreground text-center mt-1">
+                Créez des types personnalisés pour des documents spécifiques
+              </p>
+              <Button
+                onClick={() => setAddTypeDialogOpen(true)}
+                variant="outline"
+                className="mt-4"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Ajouter un type
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {typesDocuments.map((type) => (
+              <DocumentTypeCard
+                key={type.id}
+                type={type}
+                onEdit={() => {
+                  setSelectedType(type);
+                  setEditTypeDialogOpen(true);
+                }}
+                onDelete={() => {
+                  setSelectedType(type);
+                  setDeleteTypeDialogOpen(true);
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add Dialog */}
+      <Dialog open={addTypeDialogOpen} onOpenChange={setAddTypeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter un type de document</DialogTitle>
+            <DialogDescription>
+              Créez un nouveau type de document pour les {categorie === 'CHAUFFEUR' ? 'chauffeurs' : 'véhicules'}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...typeForm}>
+            <form onSubmit={typeForm.handleSubmit(onAddSubmit)} className="space-y-4">
+              <FormField
+                control={typeForm.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Code *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="EX: ATTESTATION_FORMATION"
+                        {...field}
+                        onChange={(e) => field.onChange(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    <p className="text-xs text-muted-foreground">
+                      Lettres majuscules, chiffres et underscores uniquement
+                    </p>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={typeForm.control}
+                name="nom"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nom *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: Attestation de formation" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={typeForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Description optionnelle..."
+                        rows={2}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={typeForm.control}
+                name="actif"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>Actif</FormLabel>
+                      <p className="text-xs text-muted-foreground">
+                        Ce type sera disponible pour la sélection
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setAddTypeDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={createTypeMutation.isPending}>
+                  {createTypeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Créer
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editTypeDialogOpen} onOpenChange={setEditTypeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier le type de document</DialogTitle>
+            <DialogDescription>
+              Modifiez les informations du type de document
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...typeForm}>
+            <form onSubmit={typeForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={typeForm.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Code *</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="EX: ATTESTATION_FORMATION"
+                        {...field}
+                        onChange={(e) => field.onChange(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'))}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={typeForm.control}
+                name="nom"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nom *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: Attestation de formation" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={typeForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Description optionnelle..."
+                        rows={2}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={typeForm.control}
+                name="actif"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel>Actif</FormLabel>
+                      <p className="text-xs text-muted-foreground">
+                        Ce type sera disponible pour la sélection
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditTypeDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={updateTypeMutation.isPending}>
+                  {updateTypeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Enregistrer
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <AlertDialog open={deleteTypeDialogOpen} onOpenChange={setDeleteTypeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer le type de document ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer le type &quot;{selectedType?.nom}&quot; ? 
+              Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteTypeMutation.isPending}
+            >
+              {deleteTypeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
@@ -331,9 +763,9 @@ function NotificationsSettings() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label className="text-sm font-medium">Alertes d'expiration de documents</Label>
+              <Label className="text-sm font-medium">Alertes d&apos;expiration de documents</Label>
               <p className="text-xs text-muted-foreground">
-                Recevoir une alerte avant l'expiration des documents
+                Recevoir une alerte avant l&apos;expiration des documents
               </p>
             </div>
             <Switch
@@ -349,7 +781,7 @@ function NotificationsSettings() {
               <div className="space-y-0.5">
                 <Label className="text-sm font-medium">Jours avant expiration</Label>
                 <p className="text-xs text-muted-foreground">
-                  Nombre de jours pour l'alerte anticipée
+                  Nombre de jours pour l&apos;alerte anticipée
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -437,9 +869,9 @@ function NotificationsSettings() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label className="text-sm font-medium">Alertes d'entretien</Label>
+              <Label className="text-sm font-medium">Alertes d&apos;entretien</Label>
               <p className="text-xs text-muted-foreground">
-                Recevoir une alerte avant les échéances d'entretien
+                Recevoir une alerte avant les échéances d&apos;entretien
               </p>
             </div>
             <Switch
@@ -453,9 +885,9 @@ function NotificationsSettings() {
           {settings.alertEntretien && (
             <div className="flex items-center justify-between pl-4 border-l-2 border-green-200">
               <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Jours avant l'échéance</Label>
+                <Label className="text-sm font-medium">Jours avant l&apos;échéance</Label>
                 <p className="text-xs text-muted-foreground">
-                  Nombre de jours pour l'alerte anticipée
+                  Nombre de jours pour l&apos;alerte anticipée
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -495,7 +927,7 @@ function NotificationsSettings() {
                 <Label className="text-sm font-medium">Notifications push</Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                Afficher les notifications dans l'application
+                Afficher les notifications dans l&apos;application
               </p>
             </div>
             <Switch
@@ -727,7 +1159,7 @@ function EntrepriseSettings() {
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Informations de l'entreprise
+            Informations de l&apos;entreprise
           </h3>
           <p className="text-sm text-muted-foreground">
             Ces informations apparaîtront sur vos factures et documents officiels
@@ -748,7 +1180,7 @@ function EntrepriseSettings() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <ImageIcon className="h-5 w-5 text-primary" />
-            Logo de l'entreprise
+            Logo de l&apos;entreprise
           </CardTitle>
           <CardDescription>
             Le logo apparaîtra sur vos factures et documents
@@ -818,13 +1250,13 @@ function EntrepriseSettings() {
             Informations générales
           </CardTitle>
           <CardDescription>
-            Nom et identifiants de l'entreprise
+            Nom et identifiants de l&apos;entreprise
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Nom de l'entreprise</Label>
+              <Label className="text-sm font-medium">Nom de l&apos;entreprise</Label>
               <Input
                 placeholder="MGK Transport"
                 value={entreprise.nom}
@@ -1005,485 +1437,54 @@ function Label({ className, children }: { className?: string; children: React.Re
 }
 
 export function ParametresContent() {
-  const { toast } = useToast();
-  
-  // Document Types state
-  const [addTypeDialogOpen, setAddTypeDialogOpen] = useState(false);
-  const [editTypeDialogOpen, setEditTypeDialogOpen] = useState(false);
-  const [deleteTypeDialogOpen, setDeleteTypeDialogOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<TypeDocumentPersonnalise | null>(null);
-
-  // Queries
-  const { data: typesDocuments, isLoading: isLoadingTypes } = useTypesDocuments('CHAUFFEUR');
-
-  // Document Types Mutations
-  const createTypeMutation = useCreateTypeDocument();
-  const updateTypeMutation = useUpdateTypeDocument();
-  const deleteTypeMutation = useDeleteTypeDocument();
-
-  // Form for Document Types
-  const typeForm = useForm<TypeDocumentFormValues>({
-    resolver: zodResolver(typeDocumentFormSchema),
-    defaultValues: {
-      code: "",
-      nom: "",
-      description: "",
-      actif: true,
-    },
-  });
-
-  // Reset type form when dialog opens/closes
-  React.useEffect(() => {
-    if (addTypeDialogOpen) {
-      typeForm.reset({ code: "", nom: "", description: "", actif: true });
-    }
-  }, [addTypeDialogOpen, typeForm]);
-
-  React.useEffect(() => {
-    if (editTypeDialogOpen && selectedType) {
-      typeForm.reset({
-        code: selectedType.code,
-        nom: selectedType.nom,
-        description: selectedType.description || "",
-        actif: selectedType.actif,
-      });
-    }
-  }, [editTypeDialogOpen, selectedType, typeForm]);
-
-  // Handlers for Document Types
-  const onAddTypeSubmit = async (values: TypeDocumentFormValues) => {
-    try {
-      await createTypeMutation.mutateAsync({
-        ...values,
-        categorie: 'CHAUFFEUR',
-      });
-      toast({ title: "Succès", description: "Type de document créé avec succès" });
-      setAddTypeDialogOpen(false);
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: error instanceof Error ? error.message : "Erreur lors de la création",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const onEditTypeSubmit = async (values: TypeDocumentFormValues) => {
-    if (!selectedType) return;
-    try {
-      await updateTypeMutation.mutateAsync({
-        id: selectedType.id,
-        data: values,
-      });
-      toast({ title: "Succès", description: "Type de document mis à jour avec succès" });
-      setEditTypeDialogOpen(false);
-      setSelectedType(null);
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la mise à jour",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDeleteType = async () => {
-    if (!selectedType) return;
-    try {
-      await deleteTypeMutation.mutateAsync(selectedType.id);
-      toast({ title: "Succès", description: "Type de document supprimé avec succès" });
-      setDeleteTypeDialogOpen(false);
-      setSelectedType(null);
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la suppression",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="space-y-6">
       <Tabs defaultValue="entreprise" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
           <TabsTrigger value="entreprise" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
-            Entreprise
+            <span className="hidden sm:inline">Entreprise</span>
           </TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
-            Notifications
+            <span className="hidden sm:inline">Notifications</span>
           </TabsTrigger>
-          <TabsTrigger value="documents" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Documents
+          <TabsTrigger value="docs-chauffeur" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            <span className="hidden sm:inline">Docs Chauffeur</span>
+          </TabsTrigger>
+          <TabsTrigger value="docs-vehicule" className="flex items-center gap-2">
+            <Truck className="h-4 w-4" />
+            <span className="hidden sm:inline">Docs Véhicules</span>
+          </TabsTrigger>
+          <TabsTrigger value="types-entretien" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            <span className="hidden sm:inline">Entretiens</span>
           </TabsTrigger>
         </TabsList>
 
-        {/* Entreprise Tab */}
-        <TabsContent value="entreprise" className="space-y-6 mt-4">
+        <TabsContent value="entreprise" className="mt-6">
           <EntrepriseSettings />
         </TabsContent>
 
-        {/* Notifications Tab */}
-        <TabsContent value="notifications" className="space-y-6 mt-4">
+        <TabsContent value="notifications" className="mt-6">
           <NotificationsSettings />
         </TabsContent>
 
-        {/* Document Types Tab */}
-        <TabsContent value="documents" className="space-y-6 mt-4">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-semibold">Types de Documents Chauffeur</h3>
-              <p className="text-sm text-muted-foreground">
-                Gérez les types de documents personnalisés pour le suivi et les alertes d'expiration
-              </p>
-            </div>
-            <Button
-              onClick={() => setAddTypeDialogOpen(true)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Ajouter un type
-            </Button>
-          </div>
+        <TabsContent value="docs-chauffeur" className="mt-6">
+          <DocumentTypesSettings categorie="CHAUFFEUR" />
+        </TabsContent>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-2xl font-bold">{typesDocuments?.length || 0}</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Total types</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-green-100 text-green-800">Actifs</Badge>
-                  <span className="text-2xl font-bold">
-                    {typesDocuments?.filter(t => t.actif).length || 0}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Types actifs</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Prédéfinis</Badge>
-                  <span className="text-2xl font-bold">4</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Types de base</p>
-              </CardContent>
-            </Card>
-          </div>
+        <TabsContent value="docs-vehicule" className="mt-6">
+          <DocumentTypesSettings categorie="VEHICULE" />
+        </TabsContent>
 
-          {/* Predefined Types Info */}
-          <Card className="border-blue-200 bg-blue-50/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-600" />
-                Types de documents prédéfinis
-              </CardTitle>
-              <CardDescription>
-                Ces types sont disponibles par défaut dans le système
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="bg-white">🪪 Permis de conduire</Badge>
-                <Badge variant="outline" className="bg-white">🛡️ Assurance chauffeur</Badge>
-                <Badge variant="outline" className="bg-white">🏥 Visite médicale</Badge>
-                <Badge variant="outline" className="bg-white">🪪 Carte d'identité nationale</Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Custom Types */}
-          {isLoadingTypes ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-32" />
-              ))}
-            </div>
-          ) : typesDocuments && typesDocuments.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {typesDocuments.map((type) => (
-                <DocumentTypeCard
-                  key={type.id}
-                  type={type}
-                  onEdit={() => {
-                    setSelectedType(type);
-                    setEditTypeDialogOpen(true);
-                  }}
-                  onDelete={() => {
-                    setSelectedType(type);
-                    setDeleteTypeDialogOpen(true);
-                  }}
-                />
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <FilePlus className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground text-center">
-                  Aucun type de document personnalisé
-                </p>
-                <p className="text-muted-foreground text-sm text-center mt-1">
-                  Ajoutez des types personnalisés pour le suivi de documents spécifiques
-                </p>
-                <Button
-                  onClick={() => setAddTypeDialogOpen(true)}
-                  variant="outline"
-                  className="mt-4"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Ajouter un type
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+        <TabsContent value="types-entretien" className="mt-6">
+          <TypesEntretienSettings />
         </TabsContent>
       </Tabs>
-
-      {/* Add Document Type Dialog */}
-      <Dialog open={addTypeDialogOpen} onOpenChange={setAddTypeDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ajouter un type de document</DialogTitle>
-            <DialogDescription>
-              Créer un nouveau type de document pour le suivi et les alertes
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...typeForm}>
-            <form onSubmit={typeForm.handleSubmit(onAddTypeSubmit)} className="space-y-4">
-              <FormField
-                control={typeForm.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Code *</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Ex: ATTESTATION_FORMATION" 
-                        {...field}
-                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                      />
-                    </FormControl>
-                    <p className="text-xs text-muted-foreground">
-                      Code unique (lettres majuscules, chiffres, underscores)
-                    </p>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={typeForm.control}
-                name="nom"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nom *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ex: Attestation de formation" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={typeForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Description optionnelle du type de document"
-                        rows={3}
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={typeForm.control}
-                name="actif"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel>Actif</FormLabel>
-                      <p className="text-xs text-muted-foreground">
-                        Ce type sera disponible pour la création de documents
-                      </p>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setAddTypeDialogOpen(false)}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-green-600 hover:bg-green-700"
-                  disabled={createTypeMutation.isPending}
-                >
-                  {createTypeMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Ajouter
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Document Type Dialog */}
-      <Dialog open={editTypeDialogOpen} onOpenChange={setEditTypeDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modifier le type de document</DialogTitle>
-            <DialogDescription>
-              Modifier les informations du type de document
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...typeForm}>
-            <form onSubmit={typeForm.handleSubmit(onEditTypeSubmit)} className="space-y-4">
-              <FormField
-                control={typeForm.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Code *</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Ex: ATTESTATION_FORMATION" 
-                        {...field}
-                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={typeForm.control}
-                name="nom"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nom *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ex: Attestation de formation" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={typeForm.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Description optionnelle du type de document"
-                        rows={3}
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={typeForm.control}
-                name="actif"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <FormLabel>Actif</FormLabel>
-                      <p className="text-xs text-muted-foreground">
-                        Ce type sera disponible pour la création de documents
-                      </p>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setEditTypeDialogOpen(false)}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-primary hover:bg-primary/90"
-                  disabled={updateTypeMutation.isPending}
-                >
-                  {updateTypeMutation.isPending && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Enregistrer
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Document Type Dialog */}
-      <AlertDialog open={deleteTypeDialogOpen} onOpenChange={setDeleteTypeDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer le type de document ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer le type{" "}
-              <strong>{selectedType?.nom}</strong> ? Cette action est irréversible.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteType}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteTypeMutation.isPending}
-            >
-              {deleteTypeMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
+
+export default ParametresContent;

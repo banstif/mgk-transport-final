@@ -221,7 +221,7 @@ model DocumentVehicule {
   id                String   @id @default(cuid())
   vehiculeId        String
   vehicule          Vehicule @relation(fields: [vehiculeId], references: [id])
-  type              TypeDocumentVehicule
+  type              String   // Code du type (prédéfini ou personnalisé)
   numero            String?
   dateEmission      DateTime?
   dateExpiration    DateTime?
@@ -229,13 +229,6 @@ model DocumentVehicule {
   alerteEnvoyee     Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-}
-
-enum TypeDocumentVehicule {
-  ASSURANCE
-  VISITE_TECHNIQUE
-  CARTE_GRISE
-  AUTRE
 }
 
 // ==================== CLIENTS ====================

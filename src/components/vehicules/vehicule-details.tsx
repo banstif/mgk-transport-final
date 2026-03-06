@@ -13,6 +13,8 @@ import {
   FileText,
   Plus,
   AlertTriangle,
+  Eye,
+  Download,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -34,11 +36,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { MoreHorizontal } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
-import { useVehicule, useDeleteVehicule } from "@/hooks/use-queries"
+import { useVehicule, useDeleteVehicule, useDocumentsVehicule, useDeleteDocumentVehicule } from "@/hooks/use-queries"
 import { formatCurrency, formatDate } from "@/lib/format"
 import { EntretienForm } from "./entretien-form"
 import { CarburantForm } from "./carburant-form"
+import { DocumentVehiculeForm } from "./document-vehicule-form"
+import { useToast } from "@/hooks/use-toast"
+import { TypeDocumentVehicule } from "@/types"
+
+// Predefined Document Types Labels
+const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  [TypeDocumentVehicule.ASSURANCE]: "Assurance",
+  [TypeDocumentVehicule.VISITE_TECHNIQUE]: "Visite technique",
+  [TypeDocumentVehicule.CARTE_GRISE]: "Carte grise",
+}
 
 // Fonction pour calculer la consommation moyenne (L/100km)
 function calculerConsommationMoyenne(pleins: any[]): string {
@@ -84,29 +104,38 @@ interface VehiculeDetailsProps {
 }
 
 export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefresh }: VehiculeDetailsProps) {
+  const { toast } = useToast()
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [entretienFormOpen, setEntretienFormOpen] = React.useState(false)
   const [carburantFormOpen, setCarburantFormOpen] = React.useState(false)
+  const [documentFormOpen, setDocumentFormOpen] = React.useState(false)
   const [editingCarburantId, setEditingCarburantId] = React.useState<string | null>(null)
   const [deleteCarburantId, setDeleteCarburantId] = React.useState<string | null>(null)
   const [deleteCarburantDialogOpen, setDeleteCarburantDialogOpen] = React.useState(false)
   const [editingEntretienId, setEditingEntretienId] = React.useState<string | null>(null)
   const [deleteEntretienId, setDeleteEntretienId] = React.useState<string | null>(null)
   const [deleteEntretienDialogOpen, setDeleteEntretienDialogOpen] = React.useState(false)
+  const [editingDocument, setEditingDocument] = React.useState<any>(null)
+  const [deleteDocumentId, setDeleteDocumentId] = React.useState<string | null>(null)
+  const [deleteDocumentDialogOpen, setDeleteDocumentDialogOpen] = React.useState(false)
   
   const { data: response, isLoading, refetch } = useVehicule(vehiculeId || "")
+  const { data: documents = [], refetch: refetchDocuments } = useDocumentsVehicule(vehiculeId || "")
   const deleteVehicule = useDeleteVehicule()
+  const deleteDocumentMutation = useDeleteDocumentVehicule()
   
   const vehicule = response?.data
   
   React.useEffect(() => {
     if (open && vehiculeId) {
       refetch()
+      refetchDocuments()
     }
-  }, [open, vehiculeId, refetch])
+  }, [open, vehiculeId, refetch, refetchDocuments])
 
   const handleRefreshData = () => {
     refetch()
+    refetchDocuments()
     onRefresh?.()
   }
   
@@ -130,6 +159,11 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
   const handleEditEntretien = (id: string) => {
     setEditingEntretienId(id)
     setEntretienFormOpen(true)
+  }
+
+  const handleEditDocument = (doc: any) => {
+    setEditingDocument(doc)
+    setDocumentFormOpen(true)
   }
 
   const handleDeleteEntretien = async () => {
@@ -165,6 +199,27 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
       setDeleteCarburantId(null)
     }
   }
+
+  const handleDeleteDocument = async () => {
+    if (!deleteDocumentId || !vehiculeId) return
+    try {
+      await deleteDocumentMutation.mutateAsync({ id: deleteDocumentId, vehiculeId })
+      toast({
+        title: "Succès",
+        description: "Document supprimé avec succès",
+      })
+      handleRefreshData()
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la suppression du document",
+        variant: "destructive",
+      })
+    } finally {
+      setDeleteDocumentDialogOpen(false)
+      setDeleteDocumentId(null)
+    }
+  }
   
   const getTypeEntretienLabel = (type: string) => {
     const labels: Record<string, string> = {
@@ -178,12 +233,50 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
     return labels[type] || type
   }
   
-  const getDocumentStatusLabel = (status: string, daysRemaining: number | null) => {
-    if (status === "expired") return { label: "Expiré", color: "bg-red-500" }
-    if (status === "critical") return { label: `${daysRemaining}j restant`, color: "bg-orange-500" }
-    if (status === "warning") return { label: `${daysRemaining}j restant`, color: "bg-yellow-500" }
-    return { label: "Valide", color: "bg-green-500" }
+  const getDocumentTypeLabel = (type: string) => {
+    return DOCUMENT_TYPE_LABELS[type] || type
   }
+
+  const getDocumentStatus = (dateExpiration: Date | string | null) => {
+    if (!dateExpiration) {
+      return { status: "unknown", label: "Non définie", color: "bg-gray-500", daysRemaining: null }
+    }
+
+    const expiration = new Date(dateExpiration)
+    const now = new Date()
+    const daysRemaining = Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (daysRemaining < 0) {
+      return { status: "expired", label: "Expiré", color: "bg-red-500", daysRemaining }
+    }
+    if (daysRemaining <= 7) {
+      return { status: "critical", label: `${daysRemaining}j restant`, color: "bg-orange-500", daysRemaining }
+    }
+    if (daysRemaining <= 30) {
+      return { status: "warning", label: `${daysRemaining}j restant`, color: "bg-yellow-500", daysRemaining }
+    }
+    return { status: "valid", label: "Valide", color: "bg-green-500", daysRemaining }
+  }
+
+  // Document stats
+  const documentStats = React.useMemo(() => {
+    const now = new Date()
+    const docs = documents || []
+    return {
+      total: docs.length,
+      expired: docs.filter(d => d.dateExpiration && new Date(d.dateExpiration) < now).length,
+      expiringSoon: docs.filter(d => {
+        if (!d.dateExpiration) return false
+        const days = Math.ceil((new Date(d.dateExpiration).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        return days > 0 && days <= 30
+      }).length,
+      valid: docs.filter(d => {
+        if (!d.dateExpiration) return false
+        const days = Math.ceil((new Date(d.dateExpiration).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+        return days > 30
+      }).length,
+    }
+  }, [documents])
   
   // Calculer le kilométrage du dernier plein
   const dernierPleinKm = React.useMemo(() => {
@@ -253,9 +346,9 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
                 <p className="text-xs text-muted-foreground">Entretiens</p>
               </div>
               <div className="bg-muted/50 rounded-lg p-3 text-center">
-                <Fuel className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                <p className="text-lg font-semibold">{vehicule._count?.pleinsCarburant || 0}</p>
-                <p className="text-xs text-muted-foreground">Pleins</p>
+                <FileText className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                <p className="text-lg font-semibold">{documentStats.total}</p>
+                <p className="text-xs text-muted-foreground">Documents</p>
               </div>
             </div>
             
@@ -532,35 +625,114 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
               
               {/* Documents Tab */}
               <TabsContent value="documents" className="mt-4">
+                {/* Document Stats */}
+                <div className="grid grid-cols-4 gap-3 mb-4">
+                  <div className="bg-muted/50 rounded-lg p-3 text-center">
+                    <p className="text-lg font-semibold">{documentStats.total}</p>
+                    <p className="text-xs text-muted-foreground">Total</p>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-3 text-center border border-red-200">
+                    <p className="text-lg font-semibold text-red-600">{documentStats.expired}</p>
+                    <p className="text-xs text-red-600">Expirés</p>
+                  </div>
+                  <div className="bg-orange-50 rounded-lg p-3 text-center border border-orange-200">
+                    <p className="text-lg font-semibold text-orange-600">{documentStats.expiringSoon}</p>
+                    <p className="text-xs text-orange-600">Expirent bientôt</p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-3 text-center border border-green-200">
+                    <p className="text-lg font-semibold text-green-600">{documentStats.valid}</p>
+                    <p className="text-xs text-green-600">Valides</p>
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold">Documents</h3>
+                  <h3 className="font-semibold">Documents du véhicule</h3>
+                  <Button 
+                    size="sm" 
+                    className="bg-[#0066cc] hover:bg-[#0052a3]"
+                    onClick={() => {
+                      setEditingDocument(null)
+                      setDocumentFormOpen(true)
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Ajouter
+                  </Button>
                 </div>
                 
-                {vehicule.documents?.length === 0 ? (
+                {documents.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>Aucun document enregistré</p>
+                    <p className="text-sm mt-1">Ajoutez des documents pour suivre les dates d&apos;expiration</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {vehicule.documents?.map((doc: any) => {
-                      const status = getDocumentStatusLabel(doc.status, doc.daysRemaining)
+                    {documents.map((doc: any) => {
+                      const status = getDocumentStatus(doc.dateExpiration)
                       return (
-                        <div key={doc.id} className="bg-muted/30 rounded-lg p-3">
+                        <div key={doc.id} className="bg-muted/30 rounded-lg p-3 relative overflow-hidden">
+                          {/* Expiration indicator stripe */}
+                          <div className={`absolute top-0 left-0 right-0 h-1 ${status.color}`} />
+                          
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">{doc.type}</span>
+                              <div>
+                                <span className="font-medium">{getDocumentTypeLabel(doc.type)}</span>
+                                {doc.numero && (
+                                  <p className="text-xs text-muted-foreground">N° {doc.numero}</p>
+                                )}
+                              </div>
                             </div>
-                            <Badge className={`${status.color} text-white`}>
-                              {status.label}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge className={`${status.color} text-white`}>
+                                {status.label}
+                              </Badge>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleEditDocument(doc)}>
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Modifier
+                                  </DropdownMenuItem>
+                                  {doc.fichier && (
+                                    <>
+                                      <DropdownMenuItem asChild>
+                                        <a href={doc.fichier} target="_blank" rel="noopener noreferrer">
+                                          <Eye className="mr-2 h-4 w-4" />
+                                          Voir
+                                        </a>
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem asChild>
+                                        <a href={doc.fichier} download>
+                                          <Download className="mr-2 h-4 w-4" />
+                                          Télécharger
+                                        </a>
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => {
+                                      setDeleteDocumentId(doc.id)
+                                      setDeleteDocumentDialogOpen(true)
+                                    }}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Supprimer
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
-                          {doc.numero && (
-                            <p className="text-sm text-muted-foreground mt-1">N° {doc.numero}</p>
-                          )}
                           {doc.dateExpiration && (
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground mt-2">
                               Expire le {formatDate(doc.dateExpiration)}
                             </p>
                           )}
@@ -642,6 +814,16 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
             }}
             onSuccess={handleRefreshData}
           />
+          <DocumentVehiculeForm
+            vehicule={vehicule}
+            document={editingDocument}
+            open={documentFormOpen}
+            onOpenChange={(open) => {
+              setDocumentFormOpen(open)
+              if (!open) setEditingDocument(null)
+            }}
+            onSuccess={handleRefreshData}
+          />
         </>
       )}
 
@@ -682,6 +864,28 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete document confirmation */}
+      <AlertDialog open={deleteDocumentDialogOpen} onOpenChange={setDeleteDocumentDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer le document ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer ce document ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteDocument}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteDocumentMutation.isPending}
+            >
+              {deleteDocumentMutation.isPending ? "Suppression..." : "Supprimer"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

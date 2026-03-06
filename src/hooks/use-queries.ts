@@ -706,3 +706,416 @@ export function useDeleteParametre() {
     },
   });
 }
+
+// ==================== VEHICULE DOCUMENTS HOOKS ====================
+
+export function useDocumentsVehicule(vehiculeId: string) {
+  return useQuery({
+    queryKey: ['documentsVehicule', vehiculeId],
+    queryFn: async () => {
+      const response = await fetchApi<ApiResponse<any[]>>(`/vehicules/${vehiculeId}/documents`);
+      return response.data || [];
+    },
+    enabled: !!vehiculeId,
+  });
+}
+
+export function useCreateDocumentVehicule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ vehiculeId, data }: { vehiculeId: string; data: FormData }) => {
+      const response = await fetch(`/api/vehicules/${vehiculeId}/documents`, {
+        method: 'POST',
+        body: data,
+      });
+      if (!response.ok) throw new Error('Erreur lors de la création');
+      return response.json();
+    },
+    onSuccess: (_, { vehiculeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documentsVehicule', vehiculeId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+    },
+  });
+}
+
+export function useUpdateDocumentVehicule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, vehiculeId, data }: { id: string; vehiculeId: string; data: FormData }) => {
+      const response = await fetch(`/api/vehicules/${vehiculeId}/documents/${id}`, {
+        method: 'PUT',
+        body: data,
+      });
+      if (!response.ok) throw new Error('Erreur lors de la modification');
+      return response.json();
+    },
+    onSuccess: (_, { vehiculeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documentsVehicule', vehiculeId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+    },
+  });
+}
+
+export function useDeleteDocumentVehicule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, vehiculeId }: { id: string; vehiculeId: string }) =>
+      fetchApi<ApiResponse<void>>(`/vehicules/${vehiculeId}/documents/${id}`, { method: 'DELETE' }),
+    onSuccess: (_, { vehiculeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['documentsVehicule', vehiculeId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+    },
+  });
+}
+
+// ==================== CLIENT HOOKS ====================
+
+export function useClients(params?: {
+  actif?: boolean;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return useQuery<PaginatedResponse<Client>>({
+    queryKey: ['clients', 'list', params],
+    queryFn: () => {
+      const searchParams = new URLSearchParams();
+      if (params?.actif !== undefined) searchParams.set('actif', String(params.actif));
+      if (params?.search) searchParams.set('search', params.search);
+      if (params?.page) searchParams.set('page', String(params.page));
+      if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+      return fetchApi<PaginatedResponse<Client>>(`/clients?${searchParams.toString()}`);
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useClient(id: string) {
+  return useQuery<Client>({
+    queryKey: queryKeys.client(id),
+    queryFn: async () => {
+      const response = await fetchApi<ApiResponse<Client>>(`/clients/${id}`);
+      if (!response.data) throw new Error('Client non trouvé');
+      return response.data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) =>
+      fetchApi<ApiResponse<Client>>('/clients', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients });
+    },
+  });
+}
+
+export function useUpdateClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      fetchApi<ApiResponse<Client>>(`/clients/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.client(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients });
+    },
+  });
+}
+
+export function useDeleteClient() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchApi<ApiResponse<void>>(`/clients/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.clients });
+    },
+  });
+}
+
+// ==================== FACTURE HOOKS ====================
+
+export function useFactures(params?: {
+  statut?: string;
+  clientId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return useQuery<PaginatedResponse<Facture>>({
+    queryKey: ['factures', 'list', params],
+    queryFn: () => {
+      const searchParams = new URLSearchParams();
+      if (params?.statut) searchParams.set('statut', params.statut);
+      if (params?.clientId) searchParams.set('clientId', params.clientId);
+      if (params?.search) searchParams.set('search', params.search);
+      if (params?.page) searchParams.set('page', String(params.page));
+      if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+      return fetchApi<PaginatedResponse<Facture>>(`/factures?${searchParams.toString()}`);
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useFacture(id: string) {
+  return useQuery<Facture>({
+    queryKey: queryKeys.facture(id),
+    queryFn: async () => {
+      const response = await fetchApi<ApiResponse<Facture>>(`/factures/${id}`);
+      if (!response.data) throw new Error('Facture non trouvée');
+      return response.data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateFacture() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) =>
+      fetchApi<ApiResponse<Facture>>('/factures', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.factures });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats() });
+    },
+  });
+}
+
+export function useUpdateFacture() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      fetchApi<ApiResponse<Facture>>(`/factures/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.facture(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.factures });
+    },
+  });
+}
+
+export function useDeleteFacture() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchApi<ApiResponse<void>>(`/factures/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.factures });
+    },
+  });
+}
+
+// ==================== PAIEMENT HOOKS ====================
+
+export function usePaiements(factureId: string) {
+  return useQuery({
+    queryKey: ['paiements', factureId],
+    queryFn: async () => {
+      const response = await fetchApi<ApiResponse<any[]>>(`/factures/${factureId}/paiements`);
+      return response.data || [];
+    },
+    enabled: !!factureId,
+  });
+}
+
+export function useCreatePaiement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ factureId, data }: { factureId: string; data: any }) =>
+      fetchApi<ApiResponse<any>>(`/factures/${factureId}/paiements`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_, { factureId }) => {
+      queryClient.invalidateQueries({ queryKey: ['paiements', factureId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.facture(factureId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.factures });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats() });
+    },
+  });
+}
+
+// ==================== SERVICE HOOKS ====================
+
+export function useServices(params?: {
+  actif?: boolean;
+  clientId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return useQuery<PaginatedResponse<any>>({
+    queryKey: ['services', 'list', params],
+    queryFn: () => {
+      const searchParams = new URLSearchParams();
+      if (params?.actif !== undefined) searchParams.set('actif', String(params.actif));
+      if (params?.clientId) searchParams.set('clientId', params.clientId);
+      if (params?.search) searchParams.set('search', params.search);
+      if (params?.page) searchParams.set('page', String(params.page));
+      if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+      return fetchApi<PaginatedResponse<any>>(`/services?${searchParams.toString()}`);
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useService(id: string) {
+  return useQuery<any>({
+    queryKey: ['services', id],
+    queryFn: async () => {
+      const response = await fetchApi<ApiResponse<any>>(`/services/${id}`);
+      if (!response.data) throw new Error('Service non trouvé');
+      return response.data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateService() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) =>
+      fetchApi<ApiResponse<any>>('/services', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    },
+  });
+}
+
+export function useUpdateService() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      fetchApi<ApiResponse<any>>(`/services/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['services', id] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    },
+  });
+}
+
+export function useDeleteService() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchApi<ApiResponse<void>>(`/services/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    },
+  });
+}
+
+// ==================== ENTRETIENS HOOKS ====================
+
+export function useEntretiens(vehiculeId: string) {
+  return useQuery({
+    queryKey: ['entretiens', vehiculeId],
+    queryFn: async () => {
+      const response = await fetchApi<ApiResponse<any[]>>(`/vehicules/${vehiculeId}/entretiens`);
+      return response.data || [];
+    },
+    enabled: !!vehiculeId,
+  });
+}
+
+export function useCreateEntretien() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vehiculeId, data }: { vehiculeId: string; data: any }) =>
+      fetchApi<ApiResponse<any>>(`/vehicules/${vehiculeId}/entretiens`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_, { vehiculeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['entretiens', vehiculeId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+    },
+  });
+}
+
+export function useUpdateEntretien() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, vehiculeId, data }: { id: string; vehiculeId: string; data: any }) =>
+      fetchApi<ApiResponse<any>>(`/entretiens/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...data, vehiculeId }),
+      }),
+    onSuccess: (_, { vehiculeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['entretiens', vehiculeId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+    },
+  });
+}
+
+export function useDeleteEntretien() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, vehiculeId }: { id: string; vehiculeId: string }) =>
+      fetchApi<ApiResponse<void>>(`/entretiens/${id}`, { method: 'DELETE' }),
+    onSuccess: (_, { vehiculeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['entretiens', vehiculeId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+    },
+  });
+}
+
+// ==================== CARBURANT HOOKS ====================
+
+export function useCarburants(vehiculeId: string) {
+  return useQuery({
+    queryKey: ['carburants', vehiculeId],
+    queryFn: async () => {
+      const response = await fetchApi<ApiResponse<any[]>>(`/vehicules/${vehiculeId}/carburant`);
+      return response.data || [];
+    },
+    enabled: !!vehiculeId,
+  });
+}
+
+export function useCreateCarburant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vehiculeId, data }: { vehiculeId: string; data: any }) =>
+      fetchApi<ApiResponse<any>>(`/vehicules/${vehiculeId}/carburant`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_, { vehiculeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['carburants', vehiculeId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+    },
+  });
+}
+
+export function useDeleteCarburant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, vehiculeId }: { id: string; vehiculeId: string }) =>
+      fetchApi<ApiResponse<void>>(`/carburant/${id}`, { method: 'DELETE' }),
+    onSuccess: (_, { vehiculeId }) => {
+      queryClient.invalidateQueries({ queryKey: ['carburants', vehiculeId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+    },
+  });
+}
