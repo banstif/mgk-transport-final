@@ -344,6 +344,16 @@ export function useCreatePrime() {
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
       // Invalider les salaires pour mettre à jour les montants recalculés
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider tous les previews de salaire pour ce chauffeur
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && 
+            key[0] === 'salaires' && 
+            key[1] === 'preview' && 
+            key[2] === chauffeurId;
+        }
+      });
     },
   });
 }
@@ -362,6 +372,16 @@ export function useUpdatePrime() {
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
       // Invalider les salaires pour mettre à jour les montants recalculés
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider tous les previews de salaire pour ce chauffeur
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && 
+            key[0] === 'salaires' && 
+            key[1] === 'preview' && 
+            key[2] === chauffeurId;
+        }
+      });
     },
   });
 }
@@ -377,6 +397,16 @@ export function useDeletePrime() {
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
       // Invalider les salaires pour mettre à jour les montants recalculés
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider tous les previews de salaire pour ce chauffeur
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && 
+            key[0] === 'salaires' && 
+            key[1] === 'preview' && 
+            key[2] === chauffeurId;
+        }
+      });
     },
   });
 }
@@ -408,6 +438,16 @@ export function useCreateAvance() {
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
       // Invalider les salaires pour mettre à jour les montants recalculés
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider tous les previews de salaire pour ce chauffeur
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && 
+            key[0] === 'salaires' && 
+            key[1] === 'preview' && 
+            key[2] === chauffeurId;
+        }
+      });
     },
   });
 }
@@ -426,6 +466,16 @@ export function useUpdateAvance() {
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
       // Invalider les salaires pour mettre à jour les montants recalculés
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider tous les previews de salaire pour ce chauffeur
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && 
+            key[0] === 'salaires' && 
+            key[1] === 'preview' && 
+            key[2] === chauffeurId;
+        }
+      });
     },
   });
 }
@@ -441,6 +491,16 @@ export function useDeleteAvance() {
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
       // Invalider les salaires pour mettre à jour les montants recalculés
       queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
+      // Invalider tous les previews de salaire pour ce chauffeur
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey;
+          return Array.isArray(key) && 
+            key[0] === 'salaires' && 
+            key[1] === 'preview' && 
+            key[2] === chauffeurId;
+        }
+      });
     },
   });
 }
