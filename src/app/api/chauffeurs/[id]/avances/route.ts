@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import type { ApiResponse, Avance, AvanceFormData } from '@/types';
+import { recalculateSalaireIfUnpaid, getMonthYearFromDate } from '@/lib/salaire-service';
 
 // GET /api/chauffeurs/[id]/avances - List avances for chauffeur
 export async function GET(
@@ -36,18 +37,18 @@ export async function GET(
       where.rembourse = rembourse === 'true';
     }
     
-    // Filter by date range if month/year provided
+    // Filter by date range if month/year provided (using UTC for consistency)
     if (annee && mois) {
-      const startDate = new Date(parseInt(annee), parseInt(mois) - 1, 1);
-      const endDate = new Date(parseInt(annee), parseInt(mois), 1);
+      const startDate = new Date(Date.UTC(parseInt(annee), parseInt(mois) - 1, 1));
+      const endDate = new Date(Date.UTC(parseInt(annee), parseInt(mois), 1));
       
       where.date = {
         gte: startDate,
         lt: endDate,
       };
     } else if (annee) {
-      const startDate = new Date(parseInt(annee), 0, 1);
-      const endDate = new Date(parseInt(annee) + 1, 0, 1);
+      const startDate = new Date(Date.UTC(parseInt(annee), 0, 1));
+      const endDate = new Date(Date.UTC(parseInt(annee) + 1, 0, 1));
       
       where.date = {
         gte: startDate,
@@ -147,6 +148,10 @@ export async function POST(
       },
     });
     
+    // Recalculer automatiquement le salaire si un salaire non payé existe pour ce mois
+    const { mois, annee } = getMonthYearFromDate(parsedDate);
+    await recalculateSalaireIfUnpaid(id, mois, annee);
+    
     return NextResponse.json({
       success: true,
       data: avance,
@@ -200,6 +205,10 @@ export async function PUT(
       data: { rembourse },
     });
     
+    // Recalculer automatiquement le salaire si un salaire non payé existe pour ce mois
+    const { mois, annee } = getMonthYearFromDate(avance.date);
+    await recalculateSalaireIfUnpaid(id, mois, annee);
+    
     return NextResponse.json({
       success: true,
       data: updatedAvance,
@@ -246,10 +255,17 @@ export async function DELETE(
       );
     }
     
+    // Sauvegarder la date avant suppression pour le recalcul
+    const avanceDate = avance.date;
+    const { mois, annee } = getMonthYearFromDate(avanceDate);
+    
     // Delete avance
     await db.avance.delete({
       where: { id: avanceId },
     });
+    
+    // Recalculer automatiquement le salaire si un salaire non payé existe pour ce mois
+    await recalculateSalaireIfUnpaid(id, mois, annee);
     
     return NextResponse.json({
       success: true,

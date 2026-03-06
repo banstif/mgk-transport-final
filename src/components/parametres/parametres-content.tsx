@@ -23,16 +23,21 @@ import {
   Image as ImageIcon,
   User,
   Truck,
+  Database,
+  RefreshCcw,
+  Settings,
+  Globe,
 } from "lucide-react";
-import { 
-  useParametres, 
-  useCreateParametre, 
+import {
+  useParametres,
+  useCreateParametre,
   useUpdateParametre,
   useTypesDocuments,
   useCreateTypeDocument,
   useUpdateTypeDocument,
   useDeleteTypeDocument,
   useCheckDocumentAlerts,
+  useReinitialiser,
   queryKeys,
 } from "@/hooks/use-queries";
 import { useQueryClient } from "@tanstack/react-query";
@@ -76,19 +81,29 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { RIBInput } from "@/components/ui/rib-input";
+import { Label } from "@/components/ui/label";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import type { TypeDocumentPersonnalise } from "@/types";
 import { TypesEntretienSettings } from "./types-entretien-settings";
+import { 
+  DateMode, 
+  setDateMode, 
+  getDateMode, 
+  getDateModeLabel,
+  initializeDateMode 
+} from "@/lib/date-utils";
 
 // Form Schema for Document Types
 const typeDocumentFormSchema = z.object({
@@ -1030,6 +1045,302 @@ function NotificationsSettings() {
   );
 }
 
+// Date Mode Settings Component
+function DateModeSettings() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isSaving, setIsSaving] = useState(false);
+  const [dateMode, setLocalDateMode] = useState<DateMode>(DateMode.MOROCCO_UTC);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingMode, setPendingMode] = useState<DateMode | null>(null);
+  
+  const { data: parametres } = useParametres();
+  const createMutation = useCreateParametre();
+  const updateMutation = useUpdateParametre();
+  
+  // Load date mode from parameters
+  React.useEffect(() => {
+    if (parametres) {
+      const dateModeParam = parametres.find(p => p.cle === 'APP_DATE_MODE');
+      if (dateModeParam) {
+        const mode = dateModeParam.valeur as DateMode;
+        if (mode === DateMode.LOCAL || mode === DateMode.MOROCCO_UTC) {
+          setLocalDateMode(mode);
+          setDateMode(mode);
+        }
+      }
+    }
+  }, [parametres]);
+  
+  // Handle click on date mode option - show confirmation first
+  const handleDateModeClick = (mode: DateMode) => {
+    if (mode === dateMode) return; // No change needed
+    setPendingMode(mode);
+    setConfirmDialogOpen(true);
+  };
+  
+  // Confirm and execute date mode change
+  const handleConfirmChange = async () => {
+    if (!pendingMode) return;
+    
+    setConfirmDialogOpen(false);
+    setIsSaving(true);
+    try {
+      const existing = parametres?.find(p => p.cle === 'APP_DATE_MODE');
+      
+      if (existing) {
+        await updateMutation.mutateAsync({ 
+          id: existing.id, 
+          data: { cle: 'APP_DATE_MODE', valeur: pendingMode } 
+        });
+      } else {
+        await createMutation.mutateAsync({ 
+          cle: 'APP_DATE_MODE', 
+          valeur: pendingMode 
+        });
+      }
+      
+      setLocalDateMode(pendingMode);
+      setDateMode(pendingMode);
+      
+      // Invalidate queries to refresh data with new date mode
+      queryClient.invalidateQueries();
+      
+      toast({
+        title: "Succès",
+        description: `Mode de date modifié: ${getDateModeLabel(pendingMode)}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la modification du mode de date",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+      setPendingMode(null);
+    }
+  };
+  
+  // Cancel the change
+  const handleCancelChange = () => {
+    setConfirmDialogOpen(false);
+    setPendingMode(null);
+  };
+  
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Globe className="h-5 w-5" />
+            Paramètres de date et fuseau horaire
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Configurez le mode de gestion des dates dans l&apos;application
+          </p>
+        </div>
+      </div>
+
+      {/* Explanation Card */}
+      <Card className="border-blue-200 bg-blue-50/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Settings className="h-5 w-5 text-blue-600" />
+            Comprendre les modes de date
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="bg-white p-4 rounded-lg border">
+              <h4 className="font-medium flex items-center gap-2 mb-2">
+                <Globe className="h-4 w-4 text-green-600" />
+                UTC Maroc (Recommandé)
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Utilise le fuseau horaire du Maroc (Africa/Casablanca). 
+                Recommandé si l&apos;application est utilisée principalement au Maroc.
+              </p>
+              <ul className="text-xs text-muted-foreground mt-2 space-y-1">
+                <li>• Fuseau: UTC+0 (hiver) / UTC+1 (été)</li>
+                <li>• Affichage cohérent pour tous les utilisateurs</li>
+                <li>• Dates indépendantes du navigateur</li>
+              </ul>
+            </div>
+            <div className="bg-white p-4 rounded-lg border">
+              <h4 className="font-medium flex items-center gap-2 mb-2">
+                <Clock className="h-4 w-4 text-blue-600" />
+                Local (Navigateur)
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Utilise le fuseau horaire du navigateur de l&apos;utilisateur.
+                Utile si l&apos;application est utilisée dans plusieurs pays.
+              </p>
+              <ul className="text-xs text-muted-foreground mt-2 space-y-1">
+                <li>• Fuseau: Celui du navigateur</li>
+                <li>• Affichage adapté à chaque utilisateur</li>
+                <li>• Peut varier selon la localisation</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Date Mode Selection */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Mode de date actuel</CardTitle>
+          <CardDescription>
+            Sélectionnez le mode de gestion des dates pour l&apos;application
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/* Morocco UTC Option */}
+              <div
+                className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                  dateMode === DateMode.MOROCCO_UTC
+                    ? 'border-primary bg-primary/5'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => handleDateModeClick(DateMode.MOROCCO_UTC)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    dateMode === DateMode.MOROCCO_UTC
+                      ? 'border-primary bg-primary'
+                      : 'border-gray-300'
+                  }`}>
+                    {dateMode === DateMode.MOROCCO_UTC && (
+                      <CheckCircle className="h-3 w-3 text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-5 w-5 text-primary" />
+                      <span className="font-medium">UTC Maroc</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Africa/Casablanca (UTC+0/+1)
+                    </p>
+                    <Badge variant="outline" className="mt-2 bg-green-50 text-green-700 border-green-200">
+                      Recommandé
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Local Option */}
+              <div
+                className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                  dateMode === DateMode.LOCAL
+                    ? 'border-primary bg-primary/5'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => handleDateModeClick(DateMode.LOCAL)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    dateMode === DateMode.LOCAL
+                      ? 'border-primary bg-primary'
+                      : 'border-gray-300'
+                  }`}>
+                    {dateMode === DateMode.LOCAL && (
+                      <CheckCircle className="h-3 w-3 text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                      <span className="font-medium">Local</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Fuseau horaire du navigateur
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {isSaving && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Enregistrement...
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Current Settings Summary */}
+      <Card className="border-green-200 bg-green-50/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            Résumé des paramètres
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
+              <span className="text-sm">Mode actuel:</span>
+              <Badge variant="outline" className="bg-primary/10 text-primary">
+                {getDateModeLabel(dateMode)}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-white rounded-lg border">
+              <span className="text-sm">Date du jour:</span>
+              <span className="font-medium">
+                {new Intl.DateTimeFormat('fr-FR', {
+                  timeZone: dateMode === DateMode.MOROCCO_UTC ? 'Africa/Casablanca' : undefined,
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                }).format(new Date())}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer le changement de mode de date</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const currentLabel = dateMode ? getDateModeLabel(dateMode) : "";
+                const newLabel = pendingMode ? getDateModeLabel(pendingMode) : "";
+                return (
+                  <>
+                    Êtes-vous sûr de vouloir changer le mode de date de &quot;{currentLabel}&quot; vers &quot;{newLabel}&quot; ?
+                    <br /><br />
+                    Ce changement peut affecter l&apos;affichage des dates dans toute l&apos;application.
+                  </>
+                );
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelChange}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmChange}
+              className="bg-primary hover:bg-primary/90"
+              disabled={isSaving}
+            >
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 // Company Information Settings Component
 function EntrepriseSettings() {
   const { toast } = useToast();
@@ -1358,22 +1669,18 @@ function EntrepriseSettings() {
           </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium">N° Compte Bancaire (RIB)</Label>
-            <Input
-              placeholder="XXXX XXXX XXXX XXXX XXXX XXXX"
-              maxLength={29}
-              value={entreprise.compteBancaire}
-              onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, '');
-                const formatted = digits.replace(/(.{4})/g, '$1 ').trim();
-                setEntreprise(prev => ({ ...prev, compteBancaire: formatted }));
+            <RIBInput
+              value={entreprise.compteBancaire?.replace(/\s/g, '') || ''}
+              onChange={(value) => {
+                setEntreprise(prev => ({ ...prev, compteBancaire: value }));
               }}
             />
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
-                Numéro RIB complet (24 chiffres)
+                Format: 011 780 0000123456789012 34
               </p>
               <p className="text-xs text-muted-foreground">
-                {entreprise.compteBancaire.replace(/\s/g, '').length}/24 chiffres
+                {(entreprise.compteBancaire?.replace(/\s/g, '') || '').length}/24 chiffres
               </p>
             </div>
           </div>
@@ -1431,58 +1738,302 @@ function EntrepriseSettings() {
   );
 }
 
-// Helper Label component
-function Label({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <label className={className}>{children}</label>;
+// Reinitialisation Settings Component
+function ReinitialisationSettings() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [confirmationText, setConfirmationText] = useState("");
+  const [resetResults, setResetResults] = useState<Array<{ table: string; deleted: number }> | null>(null);
+
+  const reinitialiserMutation = useReinitialiser();
+
+  const handleReset = async () => {
+    if (confirmationText !== "REINITIALISER") {
+      toast({
+        title: "Erreur",
+        description: "Veuillez taper REINITIALISER pour confirmer",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const result = await reinitialiserMutation.mutateAsync();
+      setResetResults(result.data?.results || null);
+      setResetDialogOpen(false);
+      setConfirmationText("");
+
+      toast({
+        title: "Succès",
+        description: "Application réinitialisée avec succès",
+      });
+
+      // Invalidate all queries
+      queryClient.invalidateQueries();
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message || "Erreur lors de la réinitialisation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Database className="h-5 w-5" />
+          Réinitialisation de l&apos;application
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Supprimer toutes les données de l&apos;application
+        </p>
+      </div>
+
+      {/* Warning Card */}
+      <Card className="border-red-200 bg-red-50/50">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2 text-red-700">
+            <AlertTriangle className="h-5 w-5" />
+            Avertissement
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <p className="text-sm text-red-700">
+              Cette action va <strong>supprimer définitivement</strong> toutes les données de l&apos;application, y compris :
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-200">
+                <User className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Chauffeurs</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-200">
+                <Truck className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Véhicules</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-200">
+                <Building2 className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Clients</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-200">
+                <FileText className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Factures</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-200">
+                <CreditCard className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Paiements</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-200">
+                <Clock className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Entretiens</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-200">
+                <Database className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Salaires</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-200">
+                <Bell className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Alertes</span>
+              </div>
+              <div className="flex items-center gap-2 p-2 bg-white rounded border border-red-200">
+                <FilePlus className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Documents</span>
+              </div>
+            </div>
+            <p className="text-sm text-red-600 font-medium">
+              ⚠️ Cette action est IRRÉVERSIBLE. Les paramètres de l&apos;entreprise seront conservés.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reset Button */}
+      <Button
+        variant="destructive"
+        size="lg"
+        onClick={() => setResetDialogOpen(true)}
+        className="w-full sm:w-auto"
+      >
+        <RefreshCcw className="mr-2 h-4 w-4" />
+        Réinitialiser l&apos;application
+      </Button>
+
+      {/* Results Card (shown after reset) */}
+      {resetResults && (
+        <Card className="border-green-200 bg-green-50/50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2 text-green-700">
+              <CheckCircle className="h-5 w-5" />
+              Réinitialisation terminée
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {resetResults.map((result, index) => (
+                result.deleted > 0 && (
+                  <div key={index} className="flex justify-between text-sm">
+                    <span>{result.table}</span>
+                    <span className="font-medium">{result.deleted} supprimé(s)</span>
+                  </div>
+                )
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => setResetResults(null)}
+            >
+              Fermer
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Confirmer la réinitialisation
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  Vous êtes sur le point de supprimer <strong>toutes les données</strong> de l&apos;application.
+                  Cette action est irréversible.
+                </p>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">
+                    Tapez <code className="bg-muted px-2 py-1 rounded font-mono">REINITIALISER</code> pour confirmer :
+                  </p>
+                  <Input
+                    value={confirmationText}
+                    onChange={(e) => setConfirmationText(e.target.value.toUpperCase())}
+                    placeholder="REINITIALISER"
+                    className="font-mono"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmationText("")}>
+              Annuler
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleReset}
+              disabled={confirmationText !== "REINITIALISER" || reinitialiserMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {reinitialiserMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Réinitialisation...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Réinitialiser tout
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
 }
 
 export function ParametresContent() {
+  const [selectedSection, setSelectedSection] = useState<string>("entreprise");
+
+  // Section options with icons and labels
+  const sectionOptions = [
+    { value: "entreprise", label: "Entreprise", icon: Building2 },
+    { value: "application", label: "Application", icon: Settings },
+    { value: "notifications", label: "Notifications", icon: Bell },
+    { value: "docs-chauffeur", label: "Documents Chauffeurs", icon: User },
+    { value: "docs-vehicule", label: "Documents Véhicules", icon: Truck },
+    { value: "types-entretien", label: "Types Entretiens", icon: Clock },
+    { value: "reinitialiser", label: "Réinitialiser", icon: Database, destructive: true },
+  ];
+
+  // Get current section info
+  const currentSection = sectionOptions.find(s => s.value === selectedSection);
+
+  // Render content based on selected section
+  const renderContent = () => {
+    switch (selectedSection) {
+      case "entreprise":
+        return <EntrepriseSettings />;
+      case "application":
+        return <DateModeSettings />;
+      case "notifications":
+        return <NotificationsSettings />;
+      case "docs-chauffeur":
+        return <DocumentTypesSettings categorie="CHAUFFEUR" />;
+      case "docs-vehicule":
+        return <DocumentTypesSettings categorie="VEHICULE" />;
+      case "types-entretien":
+        return <TypesEntretienSettings />;
+      case "reinitialiser":
+        return <ReinitialisationSettings />;
+      default:
+        return <EntrepriseSettings />;
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="entreprise" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
-          <TabsTrigger value="entreprise" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Entreprise</span>
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            <span className="hidden sm:inline">Notifications</span>
-          </TabsTrigger>
-          <TabsTrigger value="docs-chauffeur" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            <span className="hidden sm:inline">Docs Chauffeur</span>
-          </TabsTrigger>
-          <TabsTrigger value="docs-vehicule" className="flex items-center gap-2">
-            <Truck className="h-4 w-4" />
-            <span className="hidden sm:inline">Docs Véhicules</span>
-          </TabsTrigger>
-          <TabsTrigger value="types-entretien" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <span className="hidden sm:inline">Entretiens</span>
-          </TabsTrigger>
-        </TabsList>
+      {/* Section Selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex-1">
+          <label className="text-sm font-medium text-muted-foreground mb-2 block">
+            Section de paramètres
+          </label>
+          <Select value={selectedSection} onValueChange={setSelectedSection}>
+            <SelectTrigger className="w-full sm:w-[320px] h-12">
+              <SelectValue placeholder="Sélectionner une section">
+                {currentSection && (
+                  <div className="flex items-center gap-2">
+                    <currentSection.icon className={`h-5 w-5 ${currentSection.destructive ? 'text-red-500' : 'text-primary'}`} />
+                    <span className={currentSection.destructive ? 'text-red-600 font-medium' : ''}>
+                      {currentSection.label}
+                    </span>
+                  </div>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {sectionOptions.map((option) => (
+                <SelectItem 
+                  key={option.value} 
+                  value={option.value}
+                  className="cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <option.icon className={`h-4 w-4 ${option.destructive ? 'text-red-500' : 'text-muted-foreground'}`} />
+                    <span className={option.destructive ? 'text-red-600' : ''}>
+                      {option.label}
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-        <TabsContent value="entreprise" className="mt-6">
-          <EntrepriseSettings />
-        </TabsContent>
-
-        <TabsContent value="notifications" className="mt-6">
-          <NotificationsSettings />
-        </TabsContent>
-
-        <TabsContent value="docs-chauffeur" className="mt-6">
-          <DocumentTypesSettings categorie="CHAUFFEUR" />
-        </TabsContent>
-
-        <TabsContent value="docs-vehicule" className="mt-6">
-          <DocumentTypesSettings categorie="VEHICULE" />
-        </TabsContent>
-
-        <TabsContent value="types-entretien" className="mt-6">
-          <TypesEntretienSettings />
-        </TabsContent>
-      </Tabs>
+      {/* Content */}
+      <div className="mt-6">
+        {renderContent()}
+      </div>
     </div>
   );
 }

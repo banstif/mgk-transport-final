@@ -35,6 +35,13 @@ export async function GET(
     const startDate = new Date(Date.UTC(anneeNum, moisNum - 1, 1));
     const endDate = new Date(Date.UTC(anneeNum, moisNum, 1));
 
+    console.log('[SALAIRE PREVIEW] Date range:', {
+      mois: moisNum,
+      annee: anneeNum,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    });
+
     // Check if chauffeur exists
     const chauffeur = await db.chauffeur.findUnique({
       where: { id },
@@ -82,7 +89,20 @@ export async function GET(
         date: true,
       },
     });
-    
+
+    console.log('[SALAIRE PREVIEW] Found primes:', primes.map(p => ({
+      id: p.id,
+      motif: p.motif,
+      montant: p.montant,
+      date: p.date.toISOString(),
+    })));
+
+    console.log('[SALAIRE PREVIEW] Found avances:', avances.map(a => ({
+      id: a.id,
+      montant: a.montant,
+      date: a.date.toISOString(),
+    })));
+
     // Calculate totals
     const montantPrimes = primes.reduce((sum, p) => sum + p.montant, 0);
     const montantAvances = avances.reduce((sum, a) => sum + a.montant, 0);

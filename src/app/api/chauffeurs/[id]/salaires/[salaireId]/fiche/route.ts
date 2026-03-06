@@ -122,10 +122,14 @@ export async function GET(
       montantEnLettres = montantEnLettres + ' et ' + centimesEnLettres;
     }
 
-    // Format RIB with spaces for readability
-    const ribFormate = salaire.chauffeur.ribCompte 
-      ? salaire.chauffeur.ribCompte.replace(/(.{4})/g, '$1 ').trim()
-      : 'Non renseigné';
+    // Format RIB with correct format: XXX XXX XXXXXXXXXXXXXXXX XX (3 + 3 + 16 + 2)
+    const formatRIB = (rib: string | null): string => {
+      if (!rib) return 'Non renseigné';
+      const cleaned = rib.replace(/\D/g, '');
+      if (cleaned.length !== 24) return rib;
+      return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 22)} ${cleaned.slice(22, 24)}`;
+    };
+    const ribFormate = formatRIB(salaire.chauffeur.ribCompte);
 
     // Generate HTML content for PDF
     const html = `
@@ -293,6 +297,14 @@ export async function GET(
     }
     @media print {
       body { padding: 0; }
+      #print-instructions { display: none !important; }
+      @page {
+        margin: 15mm;
+        size: A4;
+      }
+      @page :first {
+        margin-top: 10mm;
+      }
     }
   </style>
 </head>
@@ -407,10 +419,29 @@ export async function GET(
     </div>
   </div>
 
+  <div id="print-instructions" style="position: fixed; top: 0; left: 0; right: 0; background: #333; color: white; padding: 15px; text-align: center; z-index: 9999; font-family: Arial, sans-serif;">
+    <div style="max-width: 600px; margin: 0 auto;">
+      <strong>📝 Avant d'imprimer:</strong> Dans les paramètres d'impression, décochez <strong>"En-têtes et pieds de page"</strong> pour masquer l'URL.
+      <button onclick="startPrint()" style="margin-left: 15px; padding: 8px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer;">Imprimer</button>
+      <button onclick="hideInstructions()" style="margin-left: 10px; padding: 8px 20px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer;">Fermer</button>
+    </div>
+  </div>
+
   <script>
-    window.onload = function() {
-      window.print();
+    function hideInstructions() {
+      document.getElementById('print-instructions').style.display = 'none';
     }
+    function startPrint() {
+      hideInstructions();
+      setTimeout(function() {
+        window.print();
+      }, 100);
+    }
+    // Auto-hide instructions after 5 seconds
+    setTimeout(function() {
+      hideInstructions();
+      window.print();
+    }, 5000);
   </script>
 </body>
 </html>

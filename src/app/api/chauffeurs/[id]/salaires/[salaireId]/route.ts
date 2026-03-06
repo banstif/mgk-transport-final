@@ -77,15 +77,20 @@ export async function PUT(
       );
     }
 
+    // Create date range for the month (using UTC for consistency)
+    const startDate = new Date(Date.UTC(existingSalaire.annee, existingSalaire.mois - 1, 1));
+    const endDate = new Date(Date.UTC(existingSalaire.annee, existingSalaire.mois, 1));
+
     // Get chauffeur info for recalculation
     const chauffeur = await db.chauffeur.findUnique({
       where: { id: chauffeurId },
       include: {
         primes: {
           where: {
+            comptabilise: false,
             date: {
-              gte: new Date(existingSalaire.annee, existingSalaire.mois - 1, 1),
-              lt: new Date(existingSalaire.annee, existingSalaire.mois, 1),
+              gte: startDate,
+              lt: endDate,
             },
           },
         },
@@ -93,8 +98,8 @@ export async function PUT(
           where: {
             rembourse: false,
             date: {
-              gte: new Date(existingSalaire.annee, existingSalaire.mois - 1, 1),
-              lt: new Date(existingSalaire.annee, existingSalaire.mois, 1),
+              gte: startDate,
+              lt: endDate,
             },
           },
         },
@@ -133,16 +138,47 @@ export async function PUT(
     }
 
     // Calculate primes and avances
+    const currentPrimesTotal = chauffeur.primes.reduce((sum, prime) => sum + prime.montant, 0);
+    const currentAvancesTotal = chauffeur.avances.reduce((sum, avance) => sum + avance.montant, 0);
+    
     const montantPrimes = body.montantPrimes !== undefined 
       ? body.montantPrimes 
-      : chauffeur.primes.reduce((sum, prime) => sum + prime.montant, 0);
+      : currentPrimesTotal;
     
     const montantAvances = body.montantAvances !== undefined
       ? body.montantAvances
-      : chauffeur.avances.reduce((sum, avance) => sum + avance.montant, 0);
+      : currentAvancesTotal;
 
-    // Calculate net salary: Base + Primes - Avances
-    const montantNet = montantBase + montantPrimes - montantAvances;
+    // Sync primes if montant changed
+    if (body.montantPrimes !== undefined && chauffeur.primes.length > 0) {
+      const ratio = montantPrimes / currentPrimesTotal;
+      
+      // Update each prime proportionally
+      for (const prime of chauffeur.primes) {
+        const newMontant = Math.round(prime.montant * ratio * 100) / 100;
+        await db.prime.update({
+          where: { id: prime.id },
+          data: { montant: newMontant },
+        });
+      }
+    }
+
+    // Sync avances if montant changed
+    if (body.montantAvances !== undefined && chauffeur.avances.length > 0) {
+      const ratio = montantAvances / currentAvancesTotal;
+      
+      // Update each avance proportionally
+      for (const avance of chauffeur.avances) {
+        const newMontant = Math.round(avance.montant * ratio * 100) / 100;
+        await db.avance.update({
+          where: { id: avance.id },
+          data: { montant: newMontant },
+        });
+      }
+    }
+
+    // Calculate net salary: Base + Primes - Avances (minimum 0)
+    const montantNet = Math.max(0, montantBase + montantPrimes - montantAvances);
 
     // Update salaire
     const salaire = await db.salaire.update({

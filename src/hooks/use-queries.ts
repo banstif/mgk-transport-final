@@ -321,6 +321,8 @@ export function useCreatePrime() {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.primes, chauffeurId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Invalider les salaires pour mettre à jour les montants recalculés
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
     },
   });
 }
@@ -337,6 +339,8 @@ export function useUpdatePrime() {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.primes, chauffeurId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Invalider les salaires pour mettre à jour les montants recalculés
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
     },
   });
 }
@@ -350,6 +354,8 @@ export function useDeletePrime() {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.primes, chauffeurId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Invalider les salaires pour mettre à jour les montants recalculés
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
     },
   });
 }
@@ -379,6 +385,8 @@ export function useCreateAvance() {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.avances, chauffeurId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Invalider les salaires pour mettre à jour les montants recalculés
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
     },
   });
 }
@@ -395,6 +403,8 @@ export function useUpdateAvance() {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.avances, chauffeurId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Invalider les salaires pour mettre à jour les montants recalculés
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
     },
   });
 }
@@ -408,6 +418,8 @@ export function useDeleteAvance() {
       queryClient.invalidateQueries({ queryKey: [...queryKeys.avances, chauffeurId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      // Invalider les salaires pour mettre à jour les montants recalculés
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.salaires, chauffeurId] });
     },
   });
 }
@@ -491,6 +503,9 @@ export function useUpdateSalaire() {
       // Invalider la liste des chauffeurs pour mettre à jour salaireActuel
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
       queryClient.invalidateQueries({ queryKey: queryKeys.chauffeur(chauffeurId) });
+      // Invalider les primes et avances car elles peuvent avoir été modifiées
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.primes, chauffeurId] });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.avances, chauffeurId] });
     },
   });
 }
@@ -1191,6 +1206,23 @@ export function useDeleteCarburant() {
     onSuccess: (_, { vehiculeId }) => {
       queryClient.invalidateQueries({ queryKey: ['carburants', vehiculeId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.vehicule(vehiculeId) });
+    },
+  });
+}
+
+// ==================== REINITIALISATION HOOKS ====================
+
+export function useReinitialiser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      fetchApi<ApiResponse<{ results: Array<{ table: string; deleted: number }> }>>('/reinitialiser', {
+        method: 'POST',
+        body: JSON.stringify({ confirmation: 'REINITIALISER_TOUTES_DONNEES' }),
+      }),
+    onSuccess: () => {
+      // Invalidate all queries to refresh the UI
+      queryClient.invalidateQueries();
     },
   });
 }

@@ -12,6 +12,8 @@ import {
   Loader2,
   Pencil,
   Trash2,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
 import { useSalaires, usePayerSalaire, useCreateSalaire, useUpdateSalaire, useDeleteSalaire, useSalairePreview } from "@/hooks/use-queries";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -62,6 +64,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -186,13 +189,17 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
     const montantAvances = previewData?.montantAvances || 0;
 
     // Calculate net to pay to chauffeur: Base + Primes - Avances
-    const montantNet = montantBase + montantPrimes - montantAvances;
+    const montantNetReel = montantBase + montantPrimes - montantAvances;
+    const montantNet = Math.max(0, montantNetReel);
+    const isNegative = montantNetReel < 0;
 
     return {
       montantBase,
       montantPrimes,
       montantAvances,
       montantNet,
+      montantNetReel,
+      isNegative,
     };
   };
 
@@ -213,18 +220,30 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
     }
 
     // Calculate net to pay to chauffeur: Base + Primes - Avances
-    const montantNet = montantBase + montantPrimes - montantAvances;
+    const montantNetReel = montantBase + montantPrimes - montantAvances;
+    const montantNet = Math.max(0, montantNetReel);
+    const isNegative = montantNetReel < 0;
 
     return {
       montantBase,
       montantPrimes,
       montantAvances,
       montantNet,
+      montantNetReel,
+      isNegative,
     };
   };
 
   const calculatedAdd = calculateAddSalary();
   const calculatedEdit = calculateEditSalary();
+
+  // Check if salary already exists for selected month/year
+  const existingSalary = useMemo(() => {
+    if (!salaires) return null;
+    return salaires.find(
+      (s) => s.mois === watchedMois && s.annee === watchedAnnee
+    );
+  }, [salaires, watchedMois, watchedAnnee]);
 
   // Handle mark as paid
   const handleMarkAsPaid = async (salaire: Salaire) => {
@@ -328,7 +347,7 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
   // Handle delete confirm
   const handleDeleteConfirm = async () => {
     if (!selectedSalaire) return;
-    
+
     try {
       await deleteMutation.mutateAsync({
         id: selectedSalaire.id,
@@ -402,7 +421,7 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="text-xs text-muted-foreground">Type</p>
               <p className="font-medium">
@@ -422,10 +441,6 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
             <div>
               <p className="text-xs text-muted-foreground">Date d'embauche</p>
               <p className="font-medium">{formatDate(chauffeur.dateEmbauche)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">RIB bancaire</p>
-              <p className="font-medium font-mono text-sm">{chauffeur.ribCompte || "Non renseigné"}</p>
             </div>
           </div>
         </CardContent>
@@ -457,20 +472,6 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
               </TableRow>
             ) : (
               filteredSalaires.map((salaire) => {
-                // Get primes and avances for this month from chauffeur data
-                const salaireDate = new Date(Date.UTC(salaire.annee, salaire.mois - 1, 1));
-                const salaireEndDate = new Date(Date.UTC(salaire.annee, salaire.mois, 1));
-                
-                const primesDuMois = (chauffeur as any).primes?.filter((p: any) => {
-                  const primeDate = new Date(p.date);
-                  return primeDate >= salaireDate && primeDate < salaireEndDate;
-                }) || [];
-                
-                const avancesDuMois = (chauffeur as any).avances?.filter((a: any) => {
-                  const avanceDate = new Date(a.date);
-                  return avanceDate >= salaireDate && avanceDate < salaireEndDate;
-                }) || [];
-                
                 return (
                   <TableRow key={salaire.id}>
                     <TableCell className="font-medium">
@@ -478,28 +479,14 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
                     </TableCell>
                     <TableCell>{formatCurrency(salaire.montantBase)}</TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-green-600 font-medium">
-                          +{formatCurrency(salaire.montantPrimes)}
-                        </span>
-                        {salaire.montantPrimes > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            {primesDuMois.filter((p: any) => p.comptabilise).length} prime(s) comptabilisée(s)
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-green-600 font-medium">
+                        +{formatCurrency(salaire.montantPrimes)}
+                      </span>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-red-600 font-medium">
-                          -{formatCurrency(salaire.montantAvances)}
-                        </span>
-                        {salaire.montantAvances > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            {avancesDuMois.filter((a: any) => a.rembourse).length} avance(s) remboursée(s)
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-red-600 font-medium">
+                        -{formatCurrency(salaire.montantAvances)}
+                      </span>
                     </TableCell>
                     <TableCell className="font-semibold">
                       {formatCurrency(salaire.montantNet)}
@@ -580,6 +567,23 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
               Calculer le salaire mensuel pour {chauffeur.nom} {chauffeur.prenom}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Existing Salary Warning */}
+          {existingSalary && (
+            <Alert className="border-amber-300 bg-amber-50">
+              <Info className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-700">
+                <strong>Salaire existant!</strong> Un salaire pour {MONTHS[existingSalary.mois - 1]} {existingSalary.annee} a déjà été créé.
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge variant={existingSalary.paye ? "default" : "outline"} className={existingSalary.paye ? "bg-green-100 text-green-800" : "text-amber-600 border-amber-300"}>
+                    {existingSalary.paye ? "Payé" : "En attente"}
+                  </Badge>
+                  <span className="text-sm">Net: {formatCurrency(existingSalary.montantNet)}</span>
+                </div>
+                <p className="text-xs mt-2">Veuillez sélectionner un autre mois ou modifier le salaire existant.</p>
+              </AlertDescription>
+            </Alert>
+          )}
 
           <Form {...addForm}>
             <form onSubmit={addForm.handleSubmit(onAddSubmit)} className="space-y-4">
@@ -730,7 +734,7 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
               )}
 
               {/* Calculation Preview */}
-              <Card className="bg-primary/5 border-primary/20">
+              <Card className={`bg-primary/5 ${calculatedAdd.isNegative ? 'border-red-300 bg-red-50/50' : 'border-primary/20'}`}>
                 <CardContent className="pt-4">
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
@@ -763,7 +767,7 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
                     </div>
                     <div className="border-t pt-2 flex justify-between font-semibold">
                       <span>Net à payer:</span>
-                      <span className="text-primary">
+                      <span className={calculatedAdd.isNegative ? "text-red-600" : "text-primary"}>
                         {isLoadingPreview ? (
                           <Loader2 className="h-4 w-4 animate-spin inline" />
                         ) : (
@@ -774,6 +778,18 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Negative Salary Warning */}
+              {calculatedAdd.isNegative && (
+                <Alert className="border-red-300 bg-red-50">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-700">
+                    <strong>Attention!</strong> Le montant des avances ({formatCurrency(calculatedAdd.montantAvances)}) dépasse le total base + primes ({formatCurrency(calculatedAdd.montantBase + calculatedAdd.montantPrimes)}).
+                    <br />
+                    Le chauffeur doit rembourser: <strong>{formatCurrency(Math.abs(calculatedAdd.montantNetReel))}</strong>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <DialogFooter>
                 <Button
@@ -786,7 +802,7 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
                 <Button
                   type="submit"
                   className="bg-primary hover:bg-primary/90"
-                  disabled={createMutation.isPending}
+                  disabled={createMutation.isPending || calculatedAdd.isNegative || !!existingSalary}
                 >
                   {createMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -907,7 +923,7 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
               </div>
 
               {/* Calculation Preview */}
-              <Card className="bg-primary/5 border-primary/20">
+              <Card className={`bg-primary/5 ${calculatedEdit.isNegative ? 'border-red-300 bg-red-50/50' : 'border-primary/20'}`}>
                 <CardContent className="pt-4">
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
@@ -928,13 +944,25 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
                     </div>
                     <div className="border-t pt-2 flex justify-between font-semibold">
                       <span>Net à payer:</span>
-                      <span className="text-primary">
+                      <span className={calculatedEdit.isNegative ? "text-red-600" : "text-primary"}>
                         {formatCurrency(calculatedEdit.montantNet)}
                       </span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Negative Salary Warning */}
+              {calculatedEdit.isNegative && (
+                <Alert className="border-red-300 bg-red-50">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-700">
+                    <strong>Attention!</strong> Le montant des avances ({formatCurrency(calculatedEdit.montantAvances)}) dépasse le total base + primes ({formatCurrency(calculatedEdit.montantBase + calculatedEdit.montantPrimes)}).
+                    <br />
+                    Le chauffeur doit rembourser: <strong>{formatCurrency(Math.abs(calculatedEdit.montantNetReel))}</strong>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <DialogFooter>
                 <Button
@@ -947,7 +975,7 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
                 <Button
                   type="submit"
                   className="bg-primary hover:bg-primary/90"
-                  disabled={updateMutation.isPending}
+                  disabled={updateMutation.isPending || calculatedEdit.isNegative}
                 >
                   {updateMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

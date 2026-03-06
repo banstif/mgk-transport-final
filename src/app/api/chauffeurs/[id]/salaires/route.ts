@@ -108,6 +108,13 @@ export async function POST(
     const startDate = new Date(Date.UTC(annee, mois - 1, 1));
     const endDate = new Date(Date.UTC(annee, mois, 1));
 
+    console.log('[SALAIRE CREATE] Date range:', {
+      mois,
+      annee,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    });
+
     // Check if chauffeur exists and get salary info + primes/avances of the month
     const chauffeur = await db.chauffeur.findUnique({
       where: { id },
@@ -140,6 +147,20 @@ export async function POST(
         },
       },
     });
+
+    console.log('[SALAIRE CREATE] Found primes:', chauffeur?.primes?.map(p => ({
+      id: p.id,
+      montant: p.montant,
+      date: p.date.toISOString(),
+      comptabilise: p.comptabilise
+    })));
+
+    console.log('[SALAIRE CREATE] Found avances:', chauffeur?.avances?.map(a => ({
+      id: a.id,
+      montant: a.montant,
+      date: a.date.toISOString(),
+      rembourse: a.rembourse
+    })));
     
     if (!chauffeur) {
       return NextResponse.json(
@@ -195,8 +216,8 @@ export async function POST(
       ? body.montantAvances
       : chauffeur.avances.reduce((sum, avance) => sum + avance.montant, 0);
     
-    // Calculate net salary: Base + Primes - Avances
-    const montantNet = montantBase + montantPrimes - montantAvances;
+    // Calculate net salary: Base + Primes - Avances (minimum 0)
+    const montantNet = Math.max(0, montantBase + montantPrimes - montantAvances);
     
     // Create salary record
     const salaire = await db.salaire.create({

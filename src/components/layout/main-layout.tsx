@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
+import { LiveDateTime } from "@/components/ui/live-datetime"
 import { useAlertes, useCheckDocumentAlerts } from "@/hooks/use-queries"
 
 // Navigation items
@@ -243,7 +244,8 @@ export function MainLayout({ children, activePath = "/" }: MainLayoutProps) {
               {moduleTitles[activeModule] || "Tableau de bord"}
             </h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <LiveDateTime />
             <Button
               variant="ghost"
               size="icon"

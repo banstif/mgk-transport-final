@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Loader2,
   X,
+  Info,
 } from "lucide-react";
 import { formatDate } from "@/lib/format";
 import { TypeDocumentChauffeur, type Chauffeur, type DocumentChauffeur } from "@/types";
@@ -71,6 +72,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -312,6 +314,15 @@ export function DocumentsTab({ chauffeur }: DocumentsTabProps) {
       dateExpiration: "",
     },
   });
+
+  // Watch type field for duplicate check
+  const watchedType = addForm.watch("type");
+
+  // Check if document type already exists
+  const existingDocOfType = useMemo(() => {
+    if (!watchedType) return null;
+    return documents.find(doc => doc.type === watchedType);
+  }, [documents, watchedType]);
 
   // Edit Form
   const editForm = useForm<DocumentFormValues>({
@@ -585,6 +596,22 @@ export function DocumentsTab({ chauffeur }: DocumentsTabProps) {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Duplicate Document Warning */}
+          {existingDocOfType && (
+            <Alert className="border-amber-300 bg-amber-50">
+              <Info className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-700">
+                <strong>Document existant!</strong> Un document de type "{allDocumentTypes[existingDocOfType.type]?.label || existingDocOfType.type}" existe déjà.
+                <div className="mt-2 flex items-center gap-2">
+                  {existingDocOfType.dateExpiration && (
+                    <span className="text-sm">Expire le: {formatDate(existingDocOfType.dateExpiration)}</span>
+                  )}
+                </div>
+                <p className="text-xs mt-2">Veuillez sélectionner un autre type de document ou modifier le document existant.</p>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Form {...addForm}>
             <form onSubmit={addForm.handleSubmit(onAddSubmit)} className="space-y-4">
               <FormField
@@ -594,7 +621,13 @@ export function DocumentsTab({ chauffeur }: DocumentsTabProps) {
                   <FormItem>
                     <FormLabel>Type de document *</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        // Pré-remplir le numéro avec le CIN si le type est CIN
+                        if (value === TypeDocumentChauffeur.CIN && chauffeur.cin) {
+                          addForm.setValue('numero', chauffeur.cin);
+                        }
+                      }}
                       value={field.value}
                     >
                       <FormControl>
@@ -716,7 +749,7 @@ export function DocumentsTab({ chauffeur }: DocumentsTabProps) {
                 <Button
                   type="submit"
                   className="bg-primary hover:bg-primary/90"
-                  disabled={createDocumentMutation.isPending}
+                  disabled={createDocumentMutation.isPending || !!existingDocOfType}
                 >
                   {createDocumentMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -751,7 +784,13 @@ export function DocumentsTab({ chauffeur }: DocumentsTabProps) {
                   <FormItem>
                     <FormLabel>Type de document *</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        // Pré-remplir le numéro avec le CIN si le type est CIN
+                        if (value === TypeDocumentChauffeur.CIN && chauffeur.cin) {
+                          editForm.setValue('numero', chauffeur.cin);
+                        }
+                      }}
                       value={field.value}
                     >
                       <FormControl>

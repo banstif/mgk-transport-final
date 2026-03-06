@@ -1,5 +1,7 @@
 // MGK Transport - Formatting Utilities
 
+import { formatDateDisplay as formatDateUtil, formatDateTimeDisplay as formatDateTimeUtil, getDaysUntil } from './date-utils';
+
 /**
  * Format a number as Moroccan Dirham currency
  */
@@ -13,51 +15,24 @@ export function formatCurrency(amount: number): string {
 }
 
 /**
- * Format a date to French locale
+ * Format a date to French locale (Morocco timezone)
  */
 export function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return '-';
-  
-  const d = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(d.getTime())) return '-';
-  
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(d);
+  return formatDateUtil(date);
 }
 
 /**
- * Format a date with time
+ * Format a date with time (Morocco timezone)
  */
 export function formatDateTime(date: Date | string | null | undefined): string {
-  if (!date) return '-';
-  
-  const d = typeof date === 'string' ? new Date(date) : date;
-  
-  if (isNaN(d.getTime())) return '-';
-  
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(d);
+  return formatDateTimeUtil(date);
 }
 
 /**
- * Get days until expiration
+ * Get days until expiration (uses app date mode setting)
  */
 export function getDaysUntilExpiration(dateExpiration: Date | string | null): number | null {
-  if (!dateExpiration) return null;
-  
-  const expiration = new Date(dateExpiration);
-  const now = new Date();
-  
-  return Math.ceil((expiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  return getDaysUntil(dateExpiration);
 }
 
 /**
@@ -72,9 +47,29 @@ export function formatPhoneNumber(phone: string): string {
 }
 
 /**
- * Format RIB (24 digits)
+ * Format RIB (24 digits) - Format marocain
+ * Format: XXX XXX XXXXXXXXXXXXXXXX XX (Code banque - Code guichet - Numéro compte - Clé RIB)
+ * Exemple: 011 780 0000123456789012 34
  */
 export function formatRIB(rib: string): string {
-  if (!rib || rib.length !== 24) return rib;
-  return rib.replace(/(.{4})/g, '$1 ').trim();
+  if (!rib) return rib;
+  // Supprimer tous les caractères non numériques
+  const cleaned = rib.replace(/\D/g, '');
+  if (cleaned.length !== 24) return rib;
+  return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6, 22)} ${cleaned.slice(22, 24)}`;
+}
+
+/**
+ * Parse RIB from formatted string (remove spaces)
+ */
+export function parseRIB(rib: string): string {
+  return rib.replace(/\s/g, '');
+}
+
+/**
+ * Validate RIB format (24 digits)
+ */
+export function isValidRIB(rib: string): boolean {
+  const cleaned = rib.replace(/\D/g, '');
+  return cleaned.length === 24;
 }

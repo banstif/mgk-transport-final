@@ -39,6 +39,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RIBInput } from "@/components/ui/rib-input";
+import { getTodayDateString, getDateInputValue } from "@/lib/date-utils";
 
 // Form Schema with Zod
 const chauffeurFormSchema = z.object({
@@ -116,7 +118,7 @@ export function ChauffeurForm({
       cin: "",
       telephone: "",
       adresse: "",
-      dateEmbauche: new Date().toISOString().split("T")[0],
+      dateEmbauche: getTodayDateString(),
       typeContrat: TypeContrat.CDI,
       typeSalaire: TypeSalaire.FIXE,
       montantSalaire: 0,
@@ -143,7 +145,7 @@ export function ChauffeurForm({
           cin: chauffeur.cin,
           telephone: chauffeur.telephone,
           adresse: chauffeur.adresse || "",
-          dateEmbauche: new Date(chauffeur.dateEmbauche).toISOString().split("T")[0],
+          dateEmbauche: getDateInputValue(chauffeur.dateEmbauche),
           typeContrat: chauffeur.typeContrat,
           typeSalaire: chauffeur.typeSalaire,
           montantSalaire: chauffeur.montantSalaire,
@@ -153,7 +155,7 @@ export function ChauffeurForm({
           actif: chauffeur.actif,
           permisNumero: permisDoc?.numero || "",
           permisDateExpiration: permisDoc?.dateExpiration 
-            ? new Date(permisDoc.dateExpiration).toISOString().split("T")[0] 
+            ? getDateInputValue(permisDoc.dateExpiration) 
             : "",
         });
       } else {
@@ -164,7 +166,7 @@ export function ChauffeurForm({
           cin: "",
           telephone: "",
           adresse: "",
-          dateEmbauche: new Date().toISOString().split("T")[0],
+          dateEmbauche: getTodayDateString(),
           typeContrat: TypeContrat.CDI,
           typeSalaire: TypeSalaire.FIXE,
           montantSalaire: 0,
@@ -554,20 +556,13 @@ export function ChauffeurForm({
                 <FormItem>
                   <FormLabel>N° Compte Bancaire (RIB 24 chiffres)</FormLabel>
                   <FormControl>
-                    <Input
-                      type="text"
-                      maxLength={24}
-                      placeholder="000000000000000000000000"
-                      {...field}
-                      onChange={(e) => {
-                        // Only allow digits
-                        const value = e.target.value.replace(/\D/g, "");
-                        field.onChange(value);
-                      }}
+                    <RIBInput
+                      value={field.value || ""}
+                      onChange={field.onChange}
                     />
                   </FormControl>
                   <p className="text-xs text-muted-foreground">
-                    24 chiffres sans espaces
+                    Format: 011 780 0000123456789012 34
                   </p>
                   <FormMessage />
                 </FormItem>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   User,
   Phone,
@@ -19,8 +19,9 @@ import {
   CreditCard,
   Shield,
   MoreHorizontal,
+  Info,
 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatRIB } from "@/lib/format";
 import {
   TypeContrat,
   TypeSalaire,
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,6 +84,12 @@ import { DocumentsTab } from "./documents-tab";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+
+// Month names in French
+const MONTHS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+];
 
 // Prime Form Schema
 const primeFormSchema = z.object({
@@ -222,6 +230,32 @@ export function ChauffeurDetails({
       date: new Date().toISOString().split("T")[0],
     },
   });
+
+  // Watch dates for paid salary check
+  const watchedPrimeDate = primeForm.watch("date");
+  const watchedAvanceDate = avanceForm.watch("date");
+
+  // Check if the selected month has a paid salary (for prime)
+  const paidSalaryForPrimeDate = useMemo(() => {
+    if (!watchedPrimeDate || !chauffeur?.salaires) return null;
+    const date = new Date(watchedPrimeDate);
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    return chauffeur.salaires.find(
+      s => s.mois === month && s.annee === year && s.paye
+    );
+  }, [watchedPrimeDate, chauffeur?.salaires]);
+
+  // Check if the selected month has a paid salary (for avance)
+  const paidSalaryForAvanceDate = useMemo(() => {
+    if (!watchedAvanceDate || !chauffeur?.salaires) return null;
+    const date = new Date(watchedAvanceDate);
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    return chauffeur.salaires.find(
+      s => s.mois === month && s.annee === year && s.paye
+    );
+  }, [watchedAvanceDate, chauffeur?.salaires]);
 
   // Open edit prime dialog
   const openEditPrimeDialog = (prime: Prime) => {
@@ -581,7 +615,7 @@ export function ChauffeurDetails({
                       label="N° Compte (RIB)"
                       value={
                         <span className="font-mono tracking-wider">
-                          {chauffeur.ribCompte.replace(/(.{4})/g, "$1 ").trim()}
+                          {formatRIB(chauffeur.ribCompte)}
                         </span>
                       }
                     />
@@ -828,6 +862,18 @@ export function ChauffeurDetails({
               Ajouter une prime pour {chauffeur.nom} {chauffeur.prenom}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Paid Salary Warning */}
+          {paidSalaryForPrimeDate && (
+            <Alert className="border-red-300 bg-red-50">
+              <Info className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-700">
+                <strong>Attention!</strong> Le salaire de {MONTHS[paidSalaryForPrimeDate.mois - 1]} {paidSalaryForPrimeDate.annee} est déjà payé.
+                <p className="text-xs mt-1">Impossible d'ajouter une prime pour un mois déjà payé.</p>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Form {...primeForm}>
             <form onSubmit={primeForm.handleSubmit(onAddPrimeSubmit)} className="space-y-4">
               <FormField
@@ -895,7 +941,7 @@ export function ChauffeurDetails({
                 <Button
                   type="submit"
                   className="bg-primary hover:bg-primary/90"
-                  disabled={createPrimeMutation.isPending}
+                  disabled={createPrimeMutation.isPending || !!paidSalaryForPrimeDate}
                 >
                   {createPrimeMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1033,6 +1079,18 @@ export function ChauffeurDetails({
               {chauffeur.prenom}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Paid Salary Warning */}
+          {paidSalaryForAvanceDate && (
+            <Alert className="border-red-300 bg-red-50">
+              <Info className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-700">
+                <strong>Attention!</strong> Le salaire de {MONTHS[paidSalaryForAvanceDate.mois - 1]} {paidSalaryForAvanceDate.annee} est déjà payé.
+                <p className="text-xs mt-1">Impossible d'ajouter une avance pour un mois déjà payé.</p>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Form {...avanceForm}>
             <form
               onSubmit={avanceForm.handleSubmit(onAddAvanceSubmit)}
@@ -1083,7 +1141,7 @@ export function ChauffeurDetails({
                 <Button
                   type="submit"
                   className="bg-primary hover:bg-primary/90"
-                  disabled={createAvanceMutation.isPending}
+                  disabled={createAvanceMutation.isPending || !!paidSalaryForAvanceDate}
                 >
                   {createAvanceMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

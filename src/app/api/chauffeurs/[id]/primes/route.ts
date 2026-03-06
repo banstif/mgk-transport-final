@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import type { ApiResponse, Prime, PrimeFormData } from '@/types';
+import { recalculateSalaireIfUnpaid, getMonthYearFromDate } from '@/lib/salaire-service';
 
 // GET /api/chauffeurs/[id]/primes - List primes for chauffeur
 export async function GET(
@@ -30,18 +31,18 @@ export async function GET(
     // Build where clause
     const where: Record<string, unknown> = { chauffeurId: id };
     
-    // Filter by date range if month/year provided
+    // Filter by date range if month/year provided (using UTC for consistency)
     if (annee && mois) {
-      const startDate = new Date(parseInt(annee), parseInt(mois) - 1, 1);
-      const endDate = new Date(parseInt(annee), parseInt(mois), 1);
+      const startDate = new Date(Date.UTC(parseInt(annee), parseInt(mois) - 1, 1));
+      const endDate = new Date(Date.UTC(parseInt(annee), parseInt(mois), 1));
       
       where.date = {
         gte: startDate,
         lt: endDate,
       };
     } else if (annee) {
-      const startDate = new Date(parseInt(annee), 0, 1);
-      const endDate = new Date(parseInt(annee) + 1, 0, 1);
+      const startDate = new Date(Date.UTC(parseInt(annee), 0, 1));
+      const endDate = new Date(Date.UTC(parseInt(annee) + 1, 0, 1));
       
       where.date = {
         gte: startDate,
@@ -139,6 +140,10 @@ export async function POST(
       },
     });
     
+    // Recalculer automatiquement le salaire si un salaire non payé existe pour ce mois
+    const { mois, annee } = getMonthYearFromDate(parsedDate);
+    await recalculateSalaireIfUnpaid(id, mois, annee);
+    
     return NextResponse.json({
       success: true,
       data: prime,
@@ -185,10 +190,17 @@ export async function DELETE(
       );
     }
     
+    // Sauvegarder la date avant suppression pour le recalcul
+    const primeDate = prime.date;
+    const { mois, annee } = getMonthYearFromDate(primeDate);
+    
     // Delete prime
     await db.prime.delete({
       where: { id: primeId },
     });
+    
+    // Recalculer automatiquement le salaire si un salaire non payé existe pour ce mois
+    await recalculateSalaireIfUnpaid(id, mois, annee);
     
     return NextResponse.json({
       success: true,

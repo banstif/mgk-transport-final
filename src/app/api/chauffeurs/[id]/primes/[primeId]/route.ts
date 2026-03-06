@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import type { ApiResponse, Prime } from '@/types';
+import { recalculateSalaireIfUnpaid, getMonthYearFromDate } from '@/lib/salaire-service';
 
 // GET /api/chauffeurs/[id]/primes/[primeId] - Get single prime
 export async function GET(
@@ -63,6 +64,10 @@ export async function PUT(
       );
     }
 
+    // Sauvegarder l'ancienne date pour le recalcul si la date change
+    const oldDate = existingPrime.date;
+    const oldMonthYear = getMonthYearFromDate(oldDate);
+
     // Build update data
     const updateData: Record<string, unknown> = {};
 
@@ -86,13 +91,16 @@ export async function PUT(
       updateData.montant = montant;
     }
 
+    let newDate: Date | null = null;
     if (date !== undefined) {
       // Parse date and ensure it's stored as UTC midnight
       if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
         const [year, month, day] = date.split('-').map(Number);
-        updateData.date = new Date(Date.UTC(year, month - 1, day));
+        newDate = new Date(Date.UTC(year, month - 1, day));
+        updateData.date = newDate;
       } else {
-        updateData.date = new Date(date);
+        newDate = new Date(date);
+        updateData.date = newDate;
       }
     }
 
@@ -101,6 +109,18 @@ export async function PUT(
       where: { id: primeId },
       data: updateData,
     });
+
+    // Recalculer automatiquement le salaire
+    // Toujours recalculer l'ancien mois
+    await recalculateSalaireIfUnpaid(id, oldMonthYear.mois, oldMonthYear.annee);
+
+    // Si la date a changé, recalculer aussi le nouveau mois
+    if (newDate) {
+      const newMonthYear = getMonthYearFromDate(newDate);
+      if (newMonthYear.mois !== oldMonthYear.mois || newMonthYear.annee !== oldMonthYear.annee) {
+        await recalculateSalaireIfUnpaid(id, newMonthYear.mois, newMonthYear.annee);
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -139,10 +159,17 @@ export async function DELETE(
       );
     }
 
+    // Sauvegarder la date avant suppression pour le recalcul
+    const primeDate = prime.date;
+    const { mois, annee } = getMonthYearFromDate(primeDate);
+
     // Delete prime
     await db.prime.delete({
       where: { id: primeId },
     });
+
+    // Recalculer automatiquement le salaire si un salaire non payé existe pour ce mois
+    await recalculateSalaireIfUnpaid(id, mois, annee);
 
     return NextResponse.json({
       success: true,
