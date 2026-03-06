@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { TypeContrat, TypeSalaire } from '@prisma/client';
 import type { ApiResponse, PaginatedResponse, Chauffeur, ChauffeurFormData } from '@/types';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
+import { createDocumentAlert } from '@/lib/alerts';
 
 // GET /api/chauffeurs - List all chauffeurs with pagination and filtering
 export async function GET(request: NextRequest): Promise<NextResponse<PaginatedResponse<Chauffeur> | ApiResponse<never>>> {
@@ -133,10 +136,46 @@ export async function GET(request: NextRequest): Promise<NextResponse<PaginatedR
 // POST /api/chauffeurs - Create new chauffeur
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse<Chauffeur>>> {
   try {
-    const body: ChauffeurFormData & { 
+    // Check if request is FormData or JSON
+    const contentType = request.headers.get('content-type') || '';
+    const isFormData = contentType.includes('multipart/form-data');
+    
+    let body: ChauffeurFormData & { 
       permisNumero?: string; 
       permisDateExpiration?: string;
-    } = await request.json();
+    };
+    let permisFile: File | null = null;
+    
+    if (isFormData) {
+      // Handle FormData
+      const formData = await request.formData();
+      
+      body = {
+        nom: formData.get('nom') as string,
+        prenom: formData.get('prenom') as string,
+        cin: formData.get('cin') as string,
+        telephone: formData.get('telephone') as string,
+        adresse: formData.get('adresse') as string || undefined,
+        dateEmbauche: formData.get('dateEmbauche') as string,
+        typeContrat: formData.get('typeContrat') as TypeContrat,
+        typeSalaire: formData.get('typeSalaire') as TypeSalaire,
+        montantSalaire: parseFloat(formData.get('montantSalaire') as string),
+        montantCNSS: parseFloat(formData.get('montantCNSS') as string) || 0,
+        montantAssurance: parseFloat(formData.get('montantAssurance') as string) || 0,
+        ribCompte: formData.get('ribCompte') as string || undefined,
+        actif: formData.get('actif') === 'true',
+        permisNumero: formData.get('permisNumero') as string || undefined,
+        permisDateExpiration: formData.get('permisDateExpiration') as string || undefined,
+      };
+      
+      const file = formData.get('permisFile');
+      if (file && file instanceof File && file.size > 0) {
+        permisFile = file;
+      }
+    } else {
+      // Handle JSON
+      body = await request.json();
+    }
     
     // Validate required fields
     const { nom, prenom, cin, telephone, dateEmbauche, typeContrat, typeSalaire, montantSalaire } = body;
@@ -213,6 +252,70 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         documents: true,
       },
     });
+    
+    // Handle file upload for permis de conduire
+    if (permisFile) {
+      // Validate file size (5MB max)
+      if (permisFile.size > 5 * 1024 * 1024) {
+        return NextResponse.json(
+          { success: false, error: 'Le fichier ne doit pas dépasser 5MB' },
+          { status: 400 }
+        );
+      }
+
+      // Validate file type
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+      if (!allowedTypes.includes(permisFile.type)) {
+        return NextResponse.json(
+          { success: false, error: 'Type de fichier non autorisé (PDF, JPG, PNG uniquement)' },
+          { status: 400 }
+        );
+      }
+
+      // Create upload directory
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'documents', chauffeur.id);
+      await mkdir(uploadDir, { recursive: true });
+
+      // Generate unique filename
+      const fileExtension = permisFile.name.split('.').pop() || 'pdf';
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`;
+      const fullPath = path.join(uploadDir, fileName);
+
+      // Write file
+      const bytes = await permisFile.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      await writeFile(fullPath, buffer);
+
+      // Store public path in the document
+      const filePath = `/uploads/documents/${chauffeur.id}/${fileName}`;
+      
+      // Update the permis document with the file path
+      const permisDoc = chauffeur.documents.find(d => d.type === 'PERMIS_CONDUIRE');
+      if (permisDoc) {
+        await db.documentChauffeur.update({
+          where: { id: permisDoc.id },
+          data: { fichier: filePath },
+        });
+      }
+    }
+    
+    // Create alert for permis document
+    try {
+      const permisDoc = chauffeur.documents.find(d => d.type === 'PERMIS_CONDUIRE');
+      if (permisDoc) {
+        await createDocumentAlert(
+          permisDoc.id,
+          chauffeur.id,
+          'PERMIS_CONDUIRE',
+          new Date(body.permisDateExpiration!),
+          chauffeur.nom,
+          chauffeur.prenom
+        );
+      }
+    } catch (alertError) {
+      console.error('Error creating document alert:', alertError);
+      // Don't fail the chauffeur creation if alert creation fails
+    }
     
     return NextResponse.json({
       success: true,

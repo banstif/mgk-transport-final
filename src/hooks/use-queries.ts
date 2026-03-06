@@ -120,6 +120,27 @@ export function useCreateChauffeur() {
   });
 }
 
+export function useCreateChauffeurWithFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch('/api/chauffeurs', {
+        method: 'POST',
+        body: formData,
+        // Don't set Content-Type header, let the browser set it with boundary
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erreur lors de la création du chauffeur');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+    },
+  });
+}
+
 export function useUpdateChauffeur() {
   const queryClient = useQueryClient();
   return useMutation({

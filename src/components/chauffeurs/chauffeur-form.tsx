@@ -9,6 +9,7 @@ import { Loader2, Upload, FileText, X, AlertCircle } from "lucide-react";
 import {
   useCreateChauffeur,
   useUpdateChauffeur,
+  useCreateChauffeurWithFile,
 } from "@/hooks/use-queries";
 import { TypeContrat, TypeSalaire, type Chauffeur } from "@/types";
 import {
@@ -106,7 +107,7 @@ export function ChauffeurForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Mutations
-  const createMutation = useCreateChauffeur();
+  const createMutation = useCreateChauffeurWithFile();
   const updateMutation = useUpdateChauffeur();
 
   // Form initialization
@@ -216,7 +217,7 @@ export function ChauffeurForm({
           onOpenChange(false);
         }
       } else {
-        // Create new chauffeur with permis
+        // Create new chauffeur with permis - use FormData
         const formData = new FormData();
         
         // Add chauffeur data
@@ -237,11 +238,13 @@ export function ChauffeurForm({
         // Add permis data
         formData.append('permisNumero', values.permisNumero);
         formData.append('permisDateExpiration', values.permisDateExpiration);
+        
+        // Add file if selected
         if (permisFile) {
           formData.append('permisFile', permisFile);
         }
 
-        const result = await createMutation.mutateAsync(values);
+        const result = await createMutation.mutateAsync(formData);
         if (result.success && result.data) {
           onSuccess?.(result.data);
           onOpenChange(false);
