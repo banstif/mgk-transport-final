@@ -457,17 +457,49 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
               </TableRow>
             ) : (
               filteredSalaires.map((salaire) => {
+                // Get primes and avances for this month from chauffeur data
+                const salaireDate = new Date(Date.UTC(salaire.annee, salaire.mois - 1, 1));
+                const salaireEndDate = new Date(Date.UTC(salaire.annee, salaire.mois, 1));
+                
+                const primesDuMois = (chauffeur as any).primes?.filter((p: any) => {
+                  const primeDate = new Date(p.date);
+                  return primeDate >= salaireDate && primeDate < salaireEndDate;
+                }) || [];
+                
+                const avancesDuMois = (chauffeur as any).avances?.filter((a: any) => {
+                  const avanceDate = new Date(a.date);
+                  return avanceDate >= salaireDate && avanceDate < salaireEndDate;
+                }) || [];
+                
                 return (
                   <TableRow key={salaire.id}>
                     <TableCell className="font-medium">
                       {MONTHS[salaire.mois - 1]} {salaire.annee}
                     </TableCell>
                     <TableCell>{formatCurrency(salaire.montantBase)}</TableCell>
-                    <TableCell className="text-green-600">
-                      +{formatCurrency(salaire.montantPrimes)}
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="text-green-600 font-medium">
+                          +{formatCurrency(salaire.montantPrimes)}
+                        </span>
+                        {salaire.montantPrimes > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {primesDuMois.filter((p: any) => p.comptabilise).length} prime(s) comptabilisée(s)
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-red-600">
-                      -{formatCurrency(salaire.montantAvances)}
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="text-red-600 font-medium">
+                          -{formatCurrency(salaire.montantAvances)}
+                        </span>
+                        {salaire.montantAvances > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {avancesDuMois.filter((a: any) => a.rembourse).length} avance(s) remboursée(s)
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="font-semibold">
                       {formatCurrency(salaire.montantNet)}
@@ -652,6 +684,50 @@ export function SalairesTab({ chauffeur }: SalairesTabProps) {
               <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
                 💡 Les primes et avances du mois sélectionné sont automatiquement calculées depuis la base de données.
               </p>
+
+              {/* Primes and Avances Details */}
+              {(previewData?.primes?.length > 0 || previewData?.avances?.length > 0) && (
+                <div className="space-y-3">
+                  {previewData?.primes?.length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <p className="text-sm font-medium text-green-800 mb-2">
+                        🎁 Primes du mois ({previewData.primes.length})
+                      </p>
+                      <div className="space-y-1">
+                        {previewData.primes.map((p, idx) => (
+                          <div key={p.id || idx} className="flex justify-between text-sm">
+                            <span className="text-green-700">{p.motif}</span>
+                            <span className="font-medium text-green-800">+{formatCurrency(p.montant)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {previewData?.avances?.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <p className="text-sm font-medium text-red-800 mb-2">
+                        💳 Avances du mois ({previewData.avances.length})
+                      </p>
+                      <div className="space-y-1">
+                        {previewData.avances.map((a, idx) => (
+                          <div key={a.id || idx} className="flex justify-between text-sm">
+                            <span className="text-red-700">Avance du {formatDate(a.date)}</span>
+                            <span className="font-medium text-red-800">-{formatCurrency(a.montant)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* No primes or avances message */}
+              {(!previewData?.primes?.length && !previewData?.avances?.length && !isLoadingPreview) && (
+                <div className="bg-muted/30 border rounded-lg p-3 text-sm text-muted-foreground">
+                  📋 Aucune prime ni avance non comptabilisée pour ce mois.
+                </div>
+              )}
 
               {/* Calculation Preview */}
               <Card className="bg-primary/5 border-primary/20">
