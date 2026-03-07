@@ -49,6 +49,7 @@ model Chauffeur {
   telephone         String
   adresse           String?
   dateEmbauche      DateTime
+  dateFinContrat    DateTime?  // Date de fin de contrat (pour CDD)
   typeContrat       TypeContrat
   typeSalaire       TypeSalaire
   montantSalaire    Float
@@ -365,6 +366,7 @@ enum TypeAlerte {
   ENTRETIEN_A_VENIR
   FACTURE_IMPAYEE
   DOCUMENT_EXPIRE
+  CONTRAT_FIN_PROCHE
 }
 
 enum PrioriteAlerte {

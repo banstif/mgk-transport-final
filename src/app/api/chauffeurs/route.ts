@@ -157,6 +157,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         telephone: formData.get('telephone') as string,
         adresse: formData.get('adresse') as string || undefined,
         dateEmbauche: formData.get('dateEmbauche') as string,
+        dateFinContrat: formData.get('dateFinContrat') as string || undefined,
         typeContrat: formData.get('typeContrat') as TypeContrat,
         typeSalaire: formData.get('typeSalaire') as TypeSalaire,
         montantSalaire: parseFloat(formData.get('montantSalaire') as string),
@@ -191,6 +192,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     if (!body.permisNumero || !body.permisDateExpiration) {
       return NextResponse.json(
         { success: false, error: 'Le permis de conduire est obligatoire (numéro et date d\'expiration)' },
+        { status: 400 }
+      );
+    }
+    
+    // Validate date fin contrat for CDD
+    if (typeContrat === TypeContrat.CDD && !body.dateFinContrat) {
+      return NextResponse.json(
+        { success: false, error: 'La date de fin de contrat est obligatoire pour un CDD' },
         { status: 400 }
       );
     }
@@ -231,6 +240,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         telephone,
         adresse: body.adresse || null,
         dateEmbauche: new Date(dateEmbauche),
+        dateFinContrat: body.dateFinContrat ? new Date(body.dateFinContrat) : null,
         typeContrat,
         typeSalaire,
         montantSalaire,
@@ -252,6 +262,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         documents: true,
       },
     });
+    
+    // Create alert for CDD contract expiration (30 days before)
+    if (chauffeur.dateFinContrat) {
+      const alertDate = new Date(chauffeur.dateFinContrat);
+      alertDate.setDate(alertDate.getDate() - 30); // 30 days before
+      
+      const now = new Date();
+      if (alertDate <= now) {
+        // Alert should be created immediately if contract ends within 30 days
+        await db.alerte.create({
+          data: {
+            type: 'CONTRAT_FIN_PROCHE',
+            titre: `Fin de contrat CDD - ${chauffeur.nom} ${chauffeur.prenom}`,
+            message: `Le contrat CDD de ${chauffeur.nom} ${chauffeur.prenom} expire le ${new Date(chauffeur.dateFinContrat).toLocaleDateString('fr-FR')}. Pensez à le renouveler ou à le terminer.`,
+            priority: 'HAUTE',
+            referenceId: chauffeur.id,
+          },
+        });
+      }
+    }
     
     // Handle file upload for permis de conduire
     if (permisFile) {

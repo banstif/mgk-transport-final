@@ -51,6 +51,7 @@ const chauffeurFormSchema = z.object({
   telephone: z.string().min(10, "Numéro de téléphone invalide"),
   adresse: z.string().optional(),
   dateEmbauche: z.string().min(1, "La date d'embauche est requise"),
+  dateFinContrat: z.string().optional(), // Pour CDD
   typeContrat: z.nativeEnum(TypeContrat, {
     errorMap: () => ({ message: "Veuillez sélectionner un type de contrat" }),
   }),
@@ -84,6 +85,15 @@ const chauffeurFormSchema = z.object({
   // Permis de conduire obligatoire
   permisNumero: z.string().min(1, "Le numéro du permis est obligatoire"),
   permisDateExpiration: z.string().min(1, "La date d'expiration du permis est obligatoire"),
+}).refine((data) => {
+  // Si le contrat est CDD, la date de fin est obligatoire
+  if (data.typeContrat === TypeContrat.CDD && !data.dateFinContrat) {
+    return false;
+  }
+  return true;
+}, {
+  message: "La date de fin de contrat est obligatoire pour un CDD",
+  path: ["dateFinContrat"],
 });
 
 type ChauffeurFormValues = z.infer<typeof chauffeurFormSchema>;
@@ -120,6 +130,7 @@ export function ChauffeurForm({
       telephone: "",
       adresse: "",
       dateEmbauche: getTodayDateString(),
+      dateFinContrat: "",
       typeContrat: TypeContrat.CDI,
       typeSalaire: TypeSalaire.FIXE,
       montantSalaire: 0,
@@ -131,6 +142,9 @@ export function ChauffeurForm({
       permisDateExpiration: "",
     },
   });
+
+  // Watch typeContrat to conditionally show dateFinContrat
+  const watchedTypeContrat = form.watch("typeContrat");
 
   // Reset form when dialog opens/closes or chauffeur changes
   useEffect(() => {
@@ -147,6 +161,9 @@ export function ChauffeurForm({
           telephone: chauffeur.telephone,
           adresse: chauffeur.adresse || "",
           dateEmbauche: getDateInputValue(chauffeur.dateEmbauche),
+          dateFinContrat: chauffeur.dateFinContrat 
+            ? getDateInputValue(chauffeur.dateFinContrat) 
+            : "",
           typeContrat: chauffeur.typeContrat,
           typeSalaire: chauffeur.typeSalaire,
           montantSalaire: chauffeur.montantSalaire,
@@ -168,6 +185,7 @@ export function ChauffeurForm({
           telephone: "",
           adresse: "",
           dateEmbauche: getTodayDateString(),
+          dateFinContrat: "",
           typeContrat: TypeContrat.CDI,
           typeSalaire: TypeSalaire.FIXE,
           montantSalaire: 0,
@@ -227,6 +245,7 @@ export function ChauffeurForm({
         formData.append('telephone', values.telephone);
         formData.append('adresse', values.adresse || '');
         formData.append('dateEmbauche', values.dateEmbauche);
+        formData.append('dateFinContrat', values.dateFinContrat || '');
         formData.append('typeContrat', values.typeContrat);
         formData.append('typeSalaire', values.typeSalaire);
         formData.append('montantSalaire', String(values.montantSalaire));
@@ -415,7 +434,13 @@ export function ChauffeurForm({
                   <FormItem>
                     <FormLabel>Type de contrat *</FormLabel>
                     <Select
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        // Reset dateFinContrat if not CDD
+                        if (value !== TypeContrat.CDD) {
+                          form.setValue("dateFinContrat", "");
+                        }
+                      }}
                       defaultValue={field.value}
                       value={field.value}
                     >
@@ -441,6 +466,36 @@ export function ChauffeurForm({
                 )}
               />
             </div>
+
+            {/* Date fin de contrat - Only for CDD */}
+            {watchedTypeContrat === TypeContrat.CDD && (
+              <Alert className="border-orange-200 bg-orange-50">
+                <AlertCircle className="h-4 w-4 text-orange-600" />
+                <AlertDescription className="text-orange-700">
+                  <strong>Contrat CDD détecté!</strong> Veuillez spécifier la date de fin de contrat.
+                  Une alerte automatique sera créée 30 jours avant cette date.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {watchedTypeContrat === TypeContrat.CDD && (
+              <FormField
+                control={form.control}
+                name="dateFinContrat"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date de fin de contrat *</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    <p className="text-xs text-muted-foreground">
+                      Une alerte sera créée automatiquement 30 jours avant la fin du contrat
+                    </p>
+                  </FormItem>
+                )}
+              />
+            )}
 
             {/* Salary Type and Amount */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

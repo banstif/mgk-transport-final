@@ -60,6 +60,7 @@ export enum TypeAlerte {
   ENTRETIEN_A_VENIR = 'ENTRETIEN_A_VENIR',
   FACTURE_IMPAYEE = 'FACTURE_IMPAYEE',
   DOCUMENT_EXPIRE = 'DOCUMENT_EXPIRE',
+  CONTRAT_FIN_PROCHE = 'CONTRAT_FIN_PROCHE',  // Alerte fin de contrat CDD
 }
 
 export enum PrioriteAlerte {
@@ -113,6 +114,7 @@ export interface Chauffeur {
   telephone: string;
   adresse?: string | null;
   dateEmbauche: Date;
+  dateFinContrat?: Date | null;
   typeContrat: TypeContrat;
   typeSalaire: TypeSalaire;
   montantSalaire: number;
@@ -376,6 +378,7 @@ export interface ChauffeurFormData {
   telephone: string;
   adresse?: string;
   dateEmbauche: string;
+  dateFinContrat?: string;  // Pour CDD
   typeContrat: TypeContrat;
   typeSalaire: TypeSalaire;
   montantSalaire: number;
