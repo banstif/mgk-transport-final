@@ -113,6 +113,7 @@ export interface Chauffeur {
   cin: string;
   telephone: string;
   adresse?: string | null;
+  numeroCNSS?: string | null;  // N° CNSS
   dateEmbauche: Date;
   dateFinContrat?: Date | null;
   typeContrat: TypeContrat;
@@ -377,6 +378,7 @@ export interface ChauffeurFormData {
   cin: string;
   telephone: string;
   adresse?: string;
+  numeroCNSS?: string;  // N° CNSS
   dateEmbauche: string;
   dateFinContrat?: string;  // Pour CDD
   typeContrat: TypeContrat;

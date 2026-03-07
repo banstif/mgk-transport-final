@@ -545,6 +545,13 @@ export function ChauffeurDetails({
                     label="CIN"
                     value={chauffeur.cin}
                   />
+                  {chauffeur.numeroCNSS && (
+                    <InfoRow
+                      icon={Shield}
+                      label="N° CNSS"
+                      value={chauffeur.numeroCNSS}
+                    />
+                  )}
                   <InfoRow
                     icon={Phone}
                     label="Téléphone"

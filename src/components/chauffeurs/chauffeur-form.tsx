@@ -42,6 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RIBInput } from "@/components/ui/rib-input";
 import { getTodayDateString, getDateInputValue } from "@/lib/date-utils";
+import { useToast } from "@/hooks/use-toast";
 
 // Form Schema with Zod
 const chauffeurFormSchema = z.object({
@@ -50,6 +51,12 @@ const chauffeurFormSchema = z.object({
   cin: z.string().min(5, "CIN invalide").max(20, "CIN invalide"),
   telephone: z.string().min(10, "Numéro de téléphone invalide"),
   adresse: z.string().optional(),
+  numeroCNSS: z.string()
+    .min(8, "Le N°CNSS doit contenir au moins 8 chiffres")
+    .max(12, "Le N°CNSS ne peut pas dépasser 12 chiffres")
+    .regex(/^[0-9]+$/, "Le N°CNSS doit contenir uniquement des chiffres")
+    .optional()
+    .or(z.literal("")),
   dateEmbauche: z.string().min(1, "La date d'embauche est requise"),
   dateFinContrat: z.string().optional(), // Pour CDD
   typeContrat: z.nativeEnum(TypeContrat, {
@@ -119,6 +126,7 @@ export function ChauffeurForm({
   // Mutations
   const createMutation = useCreateChauffeurWithFile();
   const updateMutation = useUpdateChauffeur();
+  const { toast } = useToast();
 
   // Form initialization
   const form = useForm<ChauffeurFormValues>({
@@ -129,6 +137,7 @@ export function ChauffeurForm({
       cin: "",
       telephone: "",
       adresse: "",
+      numeroCNSS: "",
       dateEmbauche: getTodayDateString(),
       dateFinContrat: "",
       typeContrat: TypeContrat.CDI,
@@ -160,6 +169,7 @@ export function ChauffeurForm({
           cin: chauffeur.cin,
           telephone: chauffeur.telephone,
           adresse: chauffeur.adresse || "",
+          numeroCNSS: chauffeur.numeroCNSS || "",
           dateEmbauche: getDateInputValue(chauffeur.dateEmbauche),
           dateFinContrat: chauffeur.dateFinContrat 
             ? getDateInputValue(chauffeur.dateFinContrat) 
@@ -184,6 +194,7 @@ export function ChauffeurForm({
           cin: "",
           telephone: "",
           adresse: "",
+          numeroCNSS: "",
           dateEmbauche: getTodayDateString(),
           dateFinContrat: "",
           typeContrat: TypeContrat.CDI,
@@ -244,6 +255,7 @@ export function ChauffeurForm({
         formData.append('cin', values.cin);
         formData.append('telephone', values.telephone);
         formData.append('adresse', values.adresse || '');
+        formData.append('numeroCNSS', values.numeroCNSS || '');
         formData.append('dateEmbauche', values.dateEmbauche);
         formData.append('dateFinContrat', values.dateFinContrat || '');
         formData.append('typeContrat', values.typeContrat);
@@ -269,8 +281,16 @@ export function ChauffeurForm({
           onOpenChange(false);
         }
       }
-    } catch (error) {
-      console.error("Error saving chauffeur:", error);
+    } catch (error: unknown) {
+      // Afficher le message d'erreur via toast
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Erreur lors de l'enregistrement du chauffeur";
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive",
+      });
     }
   };
 
@@ -407,6 +427,33 @@ export function ChauffeurForm({
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* N° CNSS */}
+            <FormField
+              control={form.control}
+              name="numeroCNSS"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>N° CNSS</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="12345678"
+                      maxLength={12}
+                      {...field}
+                      onChange={(e) => {
+                        // Only digits
+                        const value = e.target.value.replace(/\D/g, "");
+                        field.onChange(value);
+                      }}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Numéro d'immatriculation CNSS (8 à 12 chiffres)
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

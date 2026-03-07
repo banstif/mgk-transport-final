@@ -108,6 +108,20 @@ export async function PUT(
       }
     }
     
+    // If numeroCNSS is being updated, check for duplicates
+    if (body.numeroCNSS && body.numeroCNSS !== existingChauffeur.numeroCNSS) {
+      const duplicateCNSS = await db.chauffeur.findUnique({
+        where: { numeroCNSS: body.numeroCNSS },
+      });
+      
+      if (duplicateCNSS) {
+        return NextResponse.json(
+          { success: false, error: 'Un chauffeur avec ce N°CNSS existe déjà' },
+          { status: 400 }
+        );
+      }
+    }
+    
     // Validate enum values if provided
     if (body.typeContrat && !Object.values(TypeContrat).includes(body.typeContrat)) {
       return NextResponse.json(
@@ -131,6 +145,7 @@ export async function PUT(
     if (body.cin !== undefined) updateData.cin = body.cin;
     if (body.telephone !== undefined) updateData.telephone = body.telephone;
     if (body.adresse !== undefined) updateData.adresse = body.adresse || null;
+    if (body.numeroCNSS !== undefined) updateData.numeroCNSS = body.numeroCNSS || null;
     if (body.dateEmbauche !== undefined) updateData.dateEmbauche = new Date(body.dateEmbauche);
     if (body.typeContrat !== undefined) updateData.typeContrat = body.typeContrat;
     if (body.typeSalaire !== undefined) updateData.typeSalaire = body.typeSalaire;

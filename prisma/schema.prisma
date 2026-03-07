@@ -48,6 +48,7 @@ model Chauffeur {
   cin               String   @unique
   telephone         String
   adresse           String?
+  numeroCNSS        String?   @unique            // N° CNSS (Numéro de la Caisse Nationale de Sécurité Sociale)
   dateEmbauche      DateTime
   dateFinContrat    DateTime?  // Date de fin de contrat (pour CDD)
   typeContrat       TypeContrat

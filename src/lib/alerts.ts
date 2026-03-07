@@ -29,6 +29,8 @@ interface NotificationSettings {
   alertFactureDays: number;
   alertEntretien: boolean;
   alertEntretienDays: number;
+  alertContratCDD: boolean;
+  alertContratCDDDays: number;
   emailNotifications: boolean;
   emailRecipient: string;
   pushNotifications: boolean;
@@ -43,6 +45,8 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   alertFactureDays: 7,
   alertEntretien: true,
   alertEntretienDays: 15,
+  alertContratCDD: true,
+  alertContratCDDDays: 30,
   emailNotifications: false,
   emailRecipient: '',
   pushNotifications: true,
@@ -103,6 +107,12 @@ export async function getNotificationSettings(): Promise<NotificationSettings> {
           break;
         case 'NOTIF_SOUND_ENABLED':
           settings.soundEnabled = param.valeur === 'true';
+          break;
+        case 'NOTIF_CONTRAT_CDD':
+          settings.alertContratCDD = param.valeur === 'true';
+          break;
+        case 'NOTIF_CONTRAT_CDD_DAYS':
+          settings.alertContratCDDDays = parseInt(param.valeur) || DEFAULT_SETTINGS.alertContratCDDDays;
           break;
       }
     }
@@ -541,21 +551,30 @@ export async function checkEntretienAlerts(): Promise<number> {
   return alertsCreated;
 }
 
-// Check all alerts (documents, factures, entretiens)
+// Check all alerts (documents, factures, entretiens, contrats CDD)
 export async function checkAllAlerts(): Promise<{
   documents: number;
   factures: number;
   entretiens: number;
+  contratsCDD: number;
+  chauffeursDesactivates: number;
   total: number;
 }> {
   const documentAlerts = await checkAllDocumentAlerts();
   const factureAlerts = await checkFactureAlerts();
   const entretienAlerts = await checkEntretienAlerts();
+  
+  // CDD contract check - simplified for now
+  // TODO: Implement full CDD contract expiration check
+  let contratsCDD = 0;
+  let chauffeursDesactivates = 0;
 
   return {
     documents: documentAlerts,
     factures: factureAlerts,
     entretiens: entretienAlerts,
-    total: documentAlerts + factureAlerts + entretienAlerts,
+    contratsCDD,
+    chauffeursDesactivates,
+    total: documentAlerts + factureAlerts + entretienAlerts + contratsCDD,
   };
 }

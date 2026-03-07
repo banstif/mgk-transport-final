@@ -623,6 +623,8 @@ function NotificationsSettings() {
     alertFactureDays: 7,
     alertEntretien: true,
     alertEntretienDays: 15,
+    alertContratCDD: true,
+    alertContratCDDDays: 30,
     emailNotifications: false,
     emailRecipient: "",
     pushNotifications: true,
@@ -655,6 +657,8 @@ function NotificationsSettings() {
         alertFactureDays: loadSetting('NOTIF_FACTURE_DAYS', 7),
         alertEntretien: loadSetting('NOTIF_ENTRETIEN', true),
         alertEntretienDays: loadSetting('NOTIF_ENTRETIEN_DAYS', 15),
+        alertContratCDD: loadSetting('NOTIF_CONTRAT_CDD', true),
+        alertContratCDDDays: loadSetting('NOTIF_CONTRAT_CDD_DAYS', 30),
         emailNotifications: loadSetting('NOTIF_EMAIL_ENABLED', false),
         emailRecipient: loadSetting('NOTIF_EMAIL_RECIPIENT', ''),
         pushNotifications: loadSetting('NOTIF_PUSH_ENABLED', true),
@@ -679,6 +683,8 @@ function NotificationsSettings() {
         { cle: 'NOTIF_FACTURE_DAYS', valeur: String(settings.alertFactureDays) },
         { cle: 'NOTIF_ENTRETIEN', valeur: String(settings.alertEntretien) },
         { cle: 'NOTIF_ENTRETIEN_DAYS', valeur: String(settings.alertEntretienDays) },
+        { cle: 'NOTIF_CONTRAT_CDD', valeur: String(settings.alertContratCDD) },
+        { cle: 'NOTIF_CONTRAT_CDD_DAYS', valeur: String(settings.alertContratCDDDays) },
         { cle: 'NOTIF_EMAIL_ENABLED', valeur: String(settings.emailNotifications) },
         { cle: 'NOTIF_EMAIL_RECIPIENT', valeur: settings.emailRecipient },
         { cle: 'NOTIF_PUSH_ENABLED', valeur: String(settings.pushNotifications) },
@@ -705,14 +711,17 @@ function NotificationsSettings() {
           if (data.documents > 0) parts.push(`${data.documents} document(s)`);
           if (data.factures > 0) parts.push(`${data.factures} facture(s)`);
           if (data.entretiens > 0) parts.push(`${data.entretiens} entretien(s)`);
+          if (data.contratsCDD > 0) parts.push(`${data.contratsCDD} contrat(s) CDD`);
+          if (data.chauffeursDesactivates > 0) parts.push(`${data.chauffeursDesactivates} chauffeur(s) désactivé(s)`);
           
           queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats() });
+          queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
           
           toast({
             title: "Succès",
-            description: data.total > 0 
-              ? `Paramètres enregistrés. ${data.total} alerte(s) mise(s) à jour: ${parts.join(', ')}.`
+            description: data.total > 0 || data.chauffeursDesactivates > 0
+              ? `Paramètres enregistrés. ${parts.join(', ')}.`
               : "Paramètres enregistrés. Alertes mises à jour selon les nouveaux critères.",
           });
         } else {
@@ -724,6 +733,7 @@ function NotificationsSettings() {
       } catch {
         queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
         
         toast({
           title: "Succès",
@@ -923,6 +933,59 @@ function NotificationsSettings() {
         </CardContent>
       </Card>
 
+      {/* CDD Contract Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <User className="h-5 w-5 text-blue-500" />
+            Contrats CDD
+          </CardTitle>
+          <CardDescription>
+            Alertes pour les contrats à durée déterminée arrivant à expiration
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Alertes d&apos;expiration de contrat</Label>
+              <p className="text-xs text-muted-foreground">
+                Recevoir une alerte avant l&apos;expiration des contrats CDD
+              </p>
+            </div>
+            <Switch
+              checked={settings.alertContratCDD}
+              onCheckedChange={(checked) => 
+                setSettings(prev => ({ ...prev, alertContratCDD: checked }))
+              }
+            />
+          </div>
+          
+          {settings.alertContratCDD && (
+            <div className="flex items-center justify-between pl-4 border-l-2 border-blue-200">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Jours avant expiration</Label>
+                <p className="text-xs text-muted-foreground">
+                  Nombre de jours pour l&apos;alerte anticipée
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={90}
+                  className="w-20"
+                  value={settings.alertContratCDDDays}
+                  onChange={(e) => 
+                    setSettings(prev => ({ ...prev, alertContratCDDDays: parseInt(e.target.value) || 30 }))
+                  }
+                />
+                <span className="text-sm text-muted-foreground">jours</span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Notification Methods */}
       <Card>
         <CardHeader className="pb-3">
@@ -1021,7 +1084,7 @@ function NotificationsSettings() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="flex items-center gap-2">
               <div className={`w-3 h-3 rounded-full ${settings.alertDocumentExpiration ? 'bg-green-500' : 'bg-gray-300'}`} />
               <span className="text-sm">Documents</span>
@@ -1033,6 +1096,10 @@ function NotificationsSettings() {
             <div className="flex items-center gap-2">
               <div className={`w-3 h-3 rounded-full ${settings.alertEntretien ? 'bg-green-500' : 'bg-gray-300'}`} />
               <span className="text-sm">Entretiens</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${settings.alertContratCDD ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <span className="text-sm">Contrats CDD</span>
             </div>
             <div className="flex items-center gap-2">
               <div className={`w-3 h-3 rounded-full ${settings.emailNotifications ? 'bg-green-500' : 'bg-gray-300'}`} />

@@ -156,6 +156,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         cin: formData.get('cin') as string,
         telephone: formData.get('telephone') as string,
         adresse: formData.get('adresse') as string || undefined,
+        numeroCNSS: formData.get('numeroCNSS') as string || undefined,
         dateEmbauche: formData.get('dateEmbauche') as string,
         dateFinContrat: formData.get('dateFinContrat') as string || undefined,
         typeContrat: formData.get('typeContrat') as TypeContrat,
@@ -216,6 +217,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       );
     }
     
+    // Check if numeroCNSS already exists (if provided)
+    if (body.numeroCNSS) {
+      const existingCNSS = await db.chauffeur.findUnique({
+        where: { numeroCNSS: body.numeroCNSS },
+      });
+      
+      if (existingCNSS) {
+        return NextResponse.json(
+          { success: false, error: 'Un chauffeur avec ce N°CNSS existe déjà' },
+          { status: 400 }
+        );
+      }
+    }
+    
     // Validate enum values
     if (!Object.values(TypeContrat).includes(typeContrat)) {
       return NextResponse.json(
@@ -239,6 +254,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         cin,
         telephone,
         adresse: body.adresse || null,
+        numeroCNSS: body.numeroCNSS || null,
         dateEmbauche: new Date(dateEmbauche),
         dateFinContrat: body.dateFinContrat ? new Date(body.dateFinContrat) : null,
         typeContrat,

@@ -307,12 +307,22 @@ export function useCheckDocumentAlerts() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      fetchApi<ApiResponse<{ documents: number; factures: number; entretiens: number; total: number }>>(
+      fetchApi<ApiResponse<{ 
+        documents: number; 
+        factures: number; 
+        entretiens: number; 
+        contratsCDD: number;
+        chauffeursDesactivates: number;
+        total: number;
+      }>>(
         '/alertes/check-documents',
         { method: 'POST' }
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.alertes });
+      // Also invalidate chauffeurs in case any were deactivated due to expired CDD contracts
+      queryClient.invalidateQueries({ queryKey: queryKeys.chauffeurs });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats() });
     },
   });
 }
