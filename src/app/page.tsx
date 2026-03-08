@@ -9,9 +9,10 @@ import { ClientsContent } from "@/components/clients/clients-content"
 import { FacturesContent } from "@/components/factures/factures-content"
 import { AlertesContent } from "@/components/alertes/alertes-content"
 import { ParametresContent } from "@/components/parametres/parametres-content"
+import { ChargesContent } from "@/components/charges/charges-content"
 
 // Module types
-type Module = "dashboard" | "chauffeurs" | "vehicules" | "clients" | "facturation" | "alertes" | "parametres"
+type Module = "dashboard" | "chauffeurs" | "vehicules" | "clients" | "facturation" | "alertes" | "parametres" | "charges"
 
 export default function AppPage() {
   const [mounted, setMounted] = React.useState(false)
@@ -44,6 +45,7 @@ export default function AppPage() {
       facturation: "/facturation",
       alertes: "/alertes",
       parametres: "/parametres",
+      charges: "/charges",
     }
     return paths[currentModule]
   }
@@ -65,6 +67,8 @@ export default function AppPage() {
         return <AlertesContent />
       case "parametres":
         return <ParametresContent />
+      case "charges":
+        return <ChargesContent />
       default:
         return <DashboardContent />
     }

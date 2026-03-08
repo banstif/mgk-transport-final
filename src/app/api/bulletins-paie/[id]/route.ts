@@ -71,7 +71,7 @@ export async function DELETE(
   }
 }
 
-// PUT /api/bulletins-paie/[id] - Mettre à jour un bulletin (ex: marquer comme imprimé)
+// PUT /api/bulletins-paie/[id] - Mettre à jour un bulletin
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -80,10 +80,45 @@ export async function PUT(
     const { id } = await params;
     const data = await request.json();
 
+    // Calculer le salaire brut
+    const salaireBrut =
+      (data.salaireBase || 0) +
+      (data.heuresSupplementaires || 0) +
+      (data.primeTrajet || 0) +
+      (data.primeRendement || 0) +
+      (data.indemniteDeplacement || 0) +
+      (data.indemnitePanier || 0) +
+      (data.autresPrimes || 0);
+
+    // Calculer les retenues
+    const totalRetenues =
+      (data.cnss || 0) +
+      (data.amo || 0) +
+      (data.ir || 0) +
+      (data.avanceSalaire || 0) +
+      (data.autresRetenues || 0);
+
+    // Calculer le salaire net
+    const salaireNet = salaireBrut - totalRetenues;
+
     const bulletin = await db.bulletinPaie.update({
       where: { id },
       data: {
-        ...data,
+        salaireBase: data.salaireBase || 0,
+        heuresSupplementaires: data.heuresSupplementaires || 0,
+        primeTrajet: data.primeTrajet || 0,
+        primeRendement: data.primeRendement || 0,
+        indemniteDeplacement: data.indemniteDeplacement || 0,
+        indemnitePanier: data.indemnitePanier || 0,
+        autresPrimes: data.autresPrimes || 0,
+        salaireBrut,
+        cnss: data.cnss || 0,
+        amo: data.amo || 0,
+        ir: data.ir || 0,
+        avanceSalaire: data.avanceSalaire || 0,
+        autresRetenues: data.autresRetenues || 0,
+        totalRetenues,
+        salaireNet,
         updatedAt: new Date(),
       },
       include: {
@@ -95,6 +130,7 @@ export async function PUT(
             cin: true,
             numeroCNSS: true,
             telephone: true,
+            montantSalaire: true,
           },
         },
       },

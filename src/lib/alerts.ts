@@ -2,12 +2,19 @@
 import { db } from '@/lib/db';
 import { TypeAlerte, PrioriteAlerte } from '@prisma/client';
 
-// Document type labels for alerts
+// Document type labels for alerts (chauffeurs)
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   PERMIS_CONDUIRE: 'Permis de conduire',
   ASSURANCE_CHAUFFEUR: 'Assurance chauffeur',
   VISITE_MEDICALE: 'Visite médicale',
   CIN: 'Carte d\'identité nationale',
+};
+
+// Document type labels for vehicules
+const DOCUMENT_VEHICULE_TYPE_LABELS: Record<string, string> = {
+  CARTE_GRISE: 'Carte grise',
+  ASSURANCE: 'Assurance véhicule',
+  VISITE_TECHNIQUE: 'Visite technique',
 };
 
 // Entretien type labels
@@ -551,9 +558,141 @@ export async function checkEntretienAlerts(): Promise<number> {
   return alertsCreated;
 }
 
-// Check all alerts (documents, factures, entretiens, contrats CDD)
+// Get document vehicule type label
+export function getDocumentVehiculeTypeLabel(type: string): string {
+  return DOCUMENT_VEHICULE_TYPE_LABELS[type] || type;
+}
+
+// Check all vehicule documents and create alerts if needed
+export async function checkAllDocumentVehiculeAlerts(): Promise<number> {
+  // Get notification settings
+  const settings = await getNotificationSettings();
+
+  // If document alerts are disabled, resolve all existing vehicule document alerts
+  if (!settings.alertDocumentExpiration) {
+    await db.alerte.updateMany({
+      where: {
+        type: TypeAlerte.DOCUMENT_EXPIRE,
+        resolute: false,
+      },
+      data: {
+        resolute: true,
+      },
+    });
+    return 0;
+  }
+
+  const now = new Date();
+
+  // Get ALL vehicule documents with expiration dates
+  const documents = await db.documentVehicule.findMany({
+    where: {
+      dateExpiration: { not: null },
+    },
+    include: {
+      vehicule: {
+        select: {
+          immatriculation: true,
+          marque: true,
+          modele: true,
+        },
+      },
+    },
+  });
+
+  let alertsCreated = 0;
+
+  for (const doc of documents) {
+    if (!doc.dateExpiration) continue;
+
+    const daysUntilExpiration = Math.ceil(
+      (doc.dateExpiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (daysUntilExpiration <= settings.alertDocumentDays) {
+      // Check if alert already exists
+      const existingAlert = await db.alerte.findFirst({
+        where: {
+          referenceId: doc.id,
+          type: TypeAlerte.DOCUMENT_EXPIRE,
+          resolute: false,
+        },
+      });
+
+      // Determine priority and messages based on days until expiration
+      let priority: PrioriteAlerte;
+      let titre: string;
+      let message: string;
+      
+      const vehiculeInfo = `${doc.vehicule.marque} ${doc.vehicule.modele} (${doc.vehicule.immatriculation})`;
+      const docLabel = getDocumentVehiculeTypeLabel(doc.type);
+
+      if (daysUntilExpiration < 0) {
+        priority = PrioriteAlerte.HAUTE;
+        titre = `Document véhicule expiré: ${docLabel}`;
+        message = `Le document "${docLabel}" du véhicule ${vehiculeInfo} a expiré depuis ${Math.abs(daysUntilExpiration)} jour(s).`;
+      } else if (daysUntilExpiration <= 7) {
+        priority = PrioriteAlerte.HAUTE;
+        titre = `Document véhicule expire bientôt: ${docLabel}`;
+        message = `Le document "${docLabel}" du véhicule ${vehiculeInfo} expire dans ${daysUntilExpiration} jour(s).`;
+      } else {
+        priority = PrioriteAlerte.MOYENNE;
+        titre = `Document véhicule expire dans ${daysUntilExpiration} jours: ${docLabel}`;
+        message = `Le document "${docLabel}" du véhicule ${vehiculeInfo} expire le ${doc.dateExpiration.toLocaleDateString('fr-FR')}.`;
+      }
+
+      if (existingAlert) {
+        // Update existing alert
+        await db.alerte.update({
+          where: { id: existingAlert.id },
+          data: {
+            titre,
+            message,
+            priority,
+          },
+        });
+      } else {
+        // Create new alert
+        await db.alerte.create({
+          data: {
+            type: TypeAlerte.DOCUMENT_EXPIRE,
+            titre,
+            message,
+            priority,
+            referenceId: doc.id,
+          },
+        });
+
+        alertsCreated++;
+
+        // Mark document as alert sent
+        await db.documentVehicule.update({
+          where: { id: doc.id },
+          data: { alerteEnvoyee: true },
+        });
+      }
+    } else {
+      // Document is outside threshold - resolve any existing alert
+      await db.alerte.updateMany({
+        where: {
+          referenceId: doc.id,
+          type: TypeAlerte.DOCUMENT_EXPIRE,
+          resolute: false,
+        },
+        data: {
+          resolute: true,
+        },
+      });
+    }
+  }
+
+  return alertsCreated;
+}
+
+// Check all alerts (documents, factures, entretiens, contrats CDD, documents véhicules)
 export async function checkAllAlerts(): Promise<{
   documents: number;
+  documentsVehicules: number;
   factures: number;
   entretiens: number;
   contratsCDD: number;
@@ -561,6 +700,7 @@ export async function checkAllAlerts(): Promise<{
   total: number;
 }> {
   const documentAlerts = await checkAllDocumentAlerts();
+  const documentVehiculeAlerts = await checkAllDocumentVehiculeAlerts();
   const factureAlerts = await checkFactureAlerts();
   const entretienAlerts = await checkEntretienAlerts();
   
@@ -571,10 +711,11 @@ export async function checkAllAlerts(): Promise<{
 
   return {
     documents: documentAlerts,
+    documentsVehicules: documentVehiculeAlerts,
     factures: factureAlerts,
     entretiens: entretienAlerts,
     contratsCDD,
     chauffeursDesactivates,
-    total: documentAlerts + factureAlerts + entretienAlerts + contratsCDD,
+    total: documentAlerts + documentVehiculeAlerts + factureAlerts + entretienAlerts + contratsCDD,
   };
 }

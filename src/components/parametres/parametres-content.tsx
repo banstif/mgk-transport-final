@@ -1419,6 +1419,7 @@ function EntrepriseSettings() {
     nom: "",
     ice: "",
     adresse: "",
+    ville: "",
     telephone: "",
     email: "",
     rc: "",
@@ -1441,6 +1442,7 @@ function EntrepriseSettings() {
         nom: loadSetting('ENTREPRISE_NOM', ''),
         ice: loadSetting('ENTREPRISE_ICE', ''),
         adresse: loadSetting('ENTREPRISE_ADRESSE', ''),
+        ville: loadSetting('ENTREPRISE_VILLE', 'Casablanca'),
         telephone: loadSetting('ENTREPRISE_TELEPHONE', ''),
         email: loadSetting('ENTREPRISE_EMAIL', ''),
         rc: loadSetting('ENTREPRISE_RC', ''),
@@ -1498,6 +1500,7 @@ function EntrepriseSettings() {
         { cle: 'ENTREPRISE_NOM', valeur: entreprise.nom },
         { cle: 'ENTREPRISE_ICE', valeur: entreprise.ice },
         { cle: 'ENTREPRISE_ADRESSE', valeur: entreprise.adresse },
+        { cle: 'ENTREPRISE_VILLE', valeur: entreprise.ville },
         { cle: 'ENTREPRISE_TELEPHONE', valeur: entreprise.telephone },
         { cle: 'ENTREPRISE_EMAIL', valeur: entreprise.email },
         { cle: 'ENTREPRISE_RC', valeur: entreprise.rc },
@@ -1659,6 +1662,19 @@ function EntrepriseSettings() {
               rows={2}
             />
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Ville</Label>
+              <Input
+                placeholder="Casablanca"
+                value={entreprise.ville}
+                onChange={(e) => setEntreprise(prev => ({ ...prev, ville: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Utilisée pour les attestations et documents officiels
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -1774,9 +1790,9 @@ function EntrepriseSettings() {
               )}
               <div className="flex-1">
                 <h4 className="font-bold text-lg">{entreprise.nom || 'Nom de l\'entreprise'}</h4>
-                {entreprise.adresse && (
+                {(entreprise.adresse || entreprise.ville) && (
                   <p className="text-sm text-gray-600 flex items-center gap-1">
-                    <MapPin className="h-3 w-3" /> {entreprise.adresse}
+                    <MapPin className="h-3 w-3" /> {[entreprise.adresse, entreprise.ville].filter(Boolean).join(', ')}
                   </p>
                 )}
                 <div className="flex flex-wrap gap-4 mt-1 text-sm text-gray-600">

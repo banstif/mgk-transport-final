@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { writeFile, mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
+import { join } from 'path'
 
 // GET /api/vehicules - Liste tous les véhicules
 export async function GET(request: NextRequest) {
@@ -61,24 +64,36 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/vehicules - Créer un nouveau véhicule
+// POST /api/vehicules - Créer un nouveau véhicule avec carte grise
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const {
-      immatriculation,
-      marque,
-      modele,
-      annee,
-      capacite,
-      kilometrage,
-      chauffeurId,
-    } = body
+    const formData = await request.formData()
+    
+    const immatriculation = formData.get('immatriculation') as string
+    const marque = formData.get('marque') as string
+    const modele = formData.get('modele') as string
+    const annee = formData.get('annee') as string
+    const capacite = formData.get('capacite') as string
+    const kilometrage = formData.get('kilometrage') as string
+    const chauffeurId = formData.get('chauffeurId') as string
+    
+    // Carte grise
+    const carteGriseNumero = formData.get('carteGriseNumero') as string
+    const carteGriseDateExpiration = formData.get('carteGriseDateExpiration') as string
+    const carteGriseFile = formData.get('carteGriseFile') as File | null
 
-    // Validation
+    // Validation des champs obligatoires
     if (!immatriculation || !marque || !modele || !annee || !capacite) {
       return NextResponse.json(
         { success: false, error: 'Immatriculation, marque, modèle, année et capacité sont obligatoires' },
+        { status: 400 }
+      )
+    }
+
+    // Validation de la carte grise
+    if (!carteGriseNumero || !carteGriseDateExpiration) {
+      return NextResponse.json(
+        { success: false, error: 'Le numéro et la date d\'expiration de la carte grise sont obligatoires' },
         { status: 400 }
       )
     }
@@ -110,6 +125,41 @@ export async function POST(request: NextRequest) {
         chauffeur: {
           select: { id: true, nom: true, prenom: true, telephone: true }
         }
+      }
+    })
+
+    // Gérer le fichier de carte grise si fourni
+    let fichierPath: string | null = null
+    if (carteGriseFile && carteGriseFile.size > 0) {
+      try {
+        const uploadDir = join(process.cwd(), 'public', 'uploads', 'vehicules')
+        if (!existsSync(uploadDir)) {
+          await mkdir(uploadDir, { recursive: true })
+        }
+
+        const timestamp = Date.now()
+        const fileName = `carte_grise_${vehicule.id}_${timestamp}.${carteGriseFile.name.split('.').pop()}`
+        const filePath = join(uploadDir, fileName)
+
+        const bytes = await carteGriseFile.arrayBuffer()
+        const buffer = Buffer.from(bytes)
+        await writeFile(filePath, buffer)
+
+        fichierPath = `/uploads/vehicules/${fileName}`
+      } catch (fileError) {
+        console.error('Erreur lors de l\'enregistrement du fichier:', fileError)
+        // On continue même si le fichier n'a pas pu être sauvegardé
+      }
+    }
+
+    // Créer le document carte grise
+    await db.documentVehicule.create({
+      data: {
+        vehiculeId: vehicule.id,
+        type: 'CARTE_GRISE',
+        numero: carteGriseNumero.toUpperCase(),
+        dateExpiration: new Date(carteGriseDateExpiration),
+        fichier: fichierPath,
       }
     })
 

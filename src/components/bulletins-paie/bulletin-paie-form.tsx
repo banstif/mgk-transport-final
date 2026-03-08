@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Loader2, FileText, Printer, Download, Calculator } from "lucide-react";
+import { Loader2, FileText, Download, Calculator, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +54,7 @@ interface BulletinPaieFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: (bulletin: BulletinPaie) => void;
+  editBulletin?: BulletinPaie | null;
 }
 
 const moisOptions = [
@@ -71,13 +72,14 @@ const moisOptions = [
   { value: "12", label: "Décembre" },
 ];
 
-export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaieFormProps) {
+export function BulletinPaieForm({ open, onOpenChange, onSuccess, editBulletin }: BulletinPaieFormProps) {
   const { toast } = useToast();
   const [chauffeurs, setChauffeurs] = useState<Chauffeur[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingChauffeurs, setLoadingChauffeurs] = useState(true);
   const [selectedChauffeur, setSelectedChauffeur] = useState<Chauffeur | null>(null);
   const [generatedBulletin, setGeneratedBulletin] = useState<BulletinPaie | null>(null);
+  const isEditMode = !!editBulletin;
 
   // Current month/year defaults
   const now = new Date();
@@ -134,6 +136,8 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
 
   // Load chauffeur data when selected - with proper dependencies
   useEffect(() => {
+    // Skip auto-loading in edit mode
+    if (isEditMode) return;
     if (!watchedChauffeurId || !watchedMois || !watchedAnnee) return;
 
     let cancelled = false;
@@ -169,7 +173,7 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedChauffeurId, watchedMois, watchedAnnee]);
+  }, [watchedChauffeurId, watchedMois, watchedAnnee, isEditMode]);
 
   // Calculate totals using useMemo instead of useEffect to avoid infinite loops
   const salaireBase = form.watch("salaireBase");
@@ -214,37 +218,75 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
-      form.reset({
-        chauffeurId: "",
-        mois: currentMois,
-        annee: currentAnnee,
-        salaireBase: 0,
-        heuresSupplementaires: 0,
-        primeTrajet: 0,
-        primeRendement: 0,
-        indemniteDeplacement: 0,
-        indemnitePanier: 0,
-        autresPrimes: 0,
-        cnss: 0,
-        amo: 0,
-        ir: 0,
-        avanceSalaire: 0,
-        autresRetenues: 0,
-      });
-      setSelectedChauffeur(null);
+      if (editBulletin) {
+        // Mode édition - remplir le formulaire avec les données existantes
+        form.reset({
+          chauffeurId: editBulletin.chauffeurId,
+          mois: editBulletin.mois,
+          annee: editBulletin.annee,
+          salaireBase: editBulletin.salaireBase,
+          heuresSupplementaires: editBulletin.heuresSupplementaires,
+          primeTrajet: editBulletin.primeTrajet,
+          primeRendement: editBulletin.primeRendement,
+          indemniteDeplacement: editBulletin.indemniteDeplacement,
+          indemnitePanier: editBulletin.indemnitePanier,
+          autresPrimes: editBulletin.autresPrimes,
+          cnss: editBulletin.cnss,
+          amo: editBulletin.amo,
+          ir: editBulletin.ir,
+          avanceSalaire: editBulletin.avanceSalaire,
+          autresRetenues: editBulletin.autresRetenues,
+        });
+        // Charger les infos du chauffeur
+        if (editBulletin.chauffeur) {
+          setSelectedChauffeur(editBulletin.chauffeur as Chauffeur);
+        }
+      } else {
+        // Mode création
+        form.reset({
+          chauffeurId: "",
+          mois: currentMois,
+          annee: currentAnnee,
+          salaireBase: 0,
+          heuresSupplementaires: 0,
+          primeTrajet: 0,
+          primeRendement: 0,
+          indemniteDeplacement: 0,
+          indemnitePanier: 0,
+          autresPrimes: 0,
+          cnss: 0,
+          amo: 0,
+          ir: 0,
+          avanceSalaire: 0,
+          autresRetenues: 0,
+        });
+        setSelectedChauffeur(null);
+      }
       setGeneratedBulletin(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, editBulletin]);
 
   const onSubmit = async (values: BulletinFormValues) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/bulletins-paie", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
+      let response;
+      
+      if (isEditMode && editBulletin) {
+        // Mode édition - utiliser PUT
+        response = await fetch(`/api/bulletins-paie/${editBulletin.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        });
+      } else {
+        // Mode création
+        response = await fetch("/api/bulletins-paie", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(values),
+        });
+      }
       
       const result = await response.json();
       
@@ -252,7 +294,9 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
         setGeneratedBulletin(result.data);
         toast({
           title: "Succès",
-          description: "Bulletin de paie généré avec succès",
+          description: isEditMode 
+            ? "Bulletin de paie modifié avec succès"
+            : "Bulletin de paie généré avec succès",
         });
         onSuccess?.(result.data);
       } else {
@@ -273,8 +317,37 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownloadPdf = async () => {
+    if (!generatedBulletin) return;
+    
+    try {
+      const response = await fetch(`/api/bulletins-paie/${generatedBulletin.id}/pdf`);
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors de la génération du PDF');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Bulletin_${moisOptions.find(m => m.value === generatedBulletin.mois.toString())?.label}_${generatedBulletin.annee}_${selectedChauffeur?.nom || 'employe'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Succès",
+        description: "PDF téléchargé avec succès",
+      });
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors du téléchargement du PDF",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -283,10 +356,12 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Bulletin de Paie Chauffeur
+            {isEditMode ? "Modifier le Bulletin de Paie" : "Bulletin de Paie Chauffeur"}
           </DialogTitle>
           <DialogDescription>
-            Générez un bulletin de paie pour un chauffeur
+            {isEditMode 
+              ? "Modifiez les informations du bulletin de paie"
+              : "Générez un bulletin de paie pour un chauffeur"}
           </DialogDescription>
         </DialogHeader>
 
@@ -295,7 +370,9 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
             {/* Selection Section */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Sélection</CardTitle>
+                <CardTitle className="text-base">
+                  {isEditMode ? "Modifier le bulletin" : "Sélection"}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -304,6 +381,7 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
                     <Select
                       value={form.watch("chauffeurId")}
                       onValueChange={(value) => form.setValue("chauffeurId", value)}
+                      disabled={isEditMode}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionner un chauffeur" />
@@ -326,6 +404,7 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
                     <Select
                       value={form.watch("mois").toString()}
                       onValueChange={(value) => form.setValue("mois", parseInt(value))}
+                      disabled={isEditMode}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -346,6 +425,7 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
                       {...form.register("annee")}
                       min={2020}
                       max={2050}
+                      disabled={isEditMode}
                     />
                   </div>
                 </div>
@@ -522,12 +602,21 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Génération...
+                    {isEditMode ? "Modification..." : "Génération..."}
                   </>
                 ) : (
                   <>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Générer le bulletin
+                    {isEditMode ? (
+                      <>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Modifier le bulletin
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Générer le bulletin
+                      </>
+                    )}
                   </>
                 )}
               </Button>
@@ -536,14 +625,10 @@ export function BulletinPaieForm({ open, onOpenChange, onSuccess }: BulletinPaie
         ) : (
           /* Generated Bulletin Preview */
           <div className="space-y-4">
-            <div className="flex justify-end gap-2 print:hidden">
-              <Button variant="outline" onClick={handlePrint}>
-                <Printer className="mr-2 h-4 w-4" />
-                Imprimer
-              </Button>
-              <Button variant="outline">
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleDownloadPdf}>
                 <Download className="mr-2 h-4 w-4" />
-                Exporter PDF
+                Télécharger PDF
               </Button>
               <Button onClick={() => onOpenChange(false)}>
                 Fermer

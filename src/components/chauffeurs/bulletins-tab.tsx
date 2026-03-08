@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState } from "react";
-import { FileText, Plus, Printer, Download, Eye, Trash2 } from "lucide-react";
+import { FileText, Plus, Download, Eye, Trash2, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,6 +53,8 @@ export function BulletinsTab({ chauffeur }: BulletinsTabProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [bulletins, setBulletins] = useState<BulletinPaie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [editBulletin, setEditBulletin] = useState<BulletinPaie | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
 
   // Fetch bulletins
   const fetchBulletins = React.useCallback(async () => {
@@ -81,6 +83,11 @@ export function BulletinsTab({ chauffeur }: BulletinsTabProps) {
   const handleViewBulletin = (bulletin: BulletinPaie) => {
     setSelectedBulletin(bulletin);
     setShowPreview(true);
+  };
+
+  const handleEditBulletin = (bulletin: BulletinPaie) => {
+    setEditBulletin(bulletin);
+    setShowEditForm(true);
   };
 
   const handleDelete = async () => {
@@ -116,8 +123,35 @@ export function BulletinsTab({ chauffeur }: BulletinsTabProps) {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownloadPdf = async (bulletinId: string) => {
+    try {
+      const response = await fetch(`/api/bulletins-paie/${bulletinId}/pdf`);
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors de la génération du PDF');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Bulletin_de_paie.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Succès",
+        description: "PDF téléchargé avec succès",
+      });
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors du téléchargement du PDF",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -192,10 +226,19 @@ export function BulletinsTab({ chauffeur }: BulletinsTabProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={handlePrint}
-                            title="Imprimer"
+                            onClick={() => handleEditBulletin(bulletin)}
+                            title="Modifier"
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                           >
-                            <Printer className="h-4 w-4" />
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDownloadPdf(bulletin.id)}
+                            title="Télécharger PDF"
+                          >
+                            <Download className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -217,7 +260,7 @@ export function BulletinsTab({ chauffeur }: BulletinsTabProps) {
         </CardContent>
       </Card>
 
-      {/* Form Dialog */}
+      {/* Form Dialog - Create */}
       <BulletinPaieForm
         open={showForm}
         onOpenChange={(open) => {
@@ -226,6 +269,19 @@ export function BulletinsTab({ chauffeur }: BulletinsTabProps) {
             fetchBulletins();
           }
         }}
+      />
+
+      {/* Form Dialog - Edit */}
+      <BulletinPaieForm
+        open={showEditForm}
+        onOpenChange={(open) => {
+          setShowEditForm(open);
+          if (!open) {
+            setEditBulletin(null);
+            fetchBulletins();
+          }
+        }}
+        editBulletin={editBulletin}
       />
 
       {/* Preview Dialog */}
@@ -382,9 +438,16 @@ export function BulletinsTab({ chauffeur }: BulletinsTabProps) {
 
               {/* Actions */}
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={handlePrint}>
-                  <Printer className="mr-2 h-4 w-4" />
-                  Imprimer
+                <Button variant="outline" onClick={() => selectedBulletin && handleDownloadPdf(selectedBulletin.id)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Télécharger PDF
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  setShowPreview(false);
+                  handleEditBulletin(selectedBulletin);
+                }}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Modifier
                 </Button>
               </div>
             </div>

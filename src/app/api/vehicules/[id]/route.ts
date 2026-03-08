@@ -158,7 +158,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/vehicules/[id] - Supprimer un véhicule
+// DELETE /api/vehicules/[id] - Supprimer ou désactiver un véhicule
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -169,6 +169,15 @@ export async function DELETE(
     // Vérifier que le véhicule existe
     const vehicule = await db.vehicule.findUnique({
       where: { id },
+      include: {
+        _count: {
+          select: {
+            services: true,
+            entretiens: true,
+            pleinsCarburant: true,
+          }
+        }
+      }
     })
 
     if (!vehicule) {
@@ -178,13 +187,44 @@ export async function DELETE(
       )
     }
 
-    // Supprimer le véhicule (les relations seront supprimées en cascade)
+    // Vérifier s'il y a des relations (services, entretiens, pleins de carburant)
+    const hasRelations = vehicule._count.services > 0 ||
+                         vehicule._count.entretiens > 0 ||
+                         vehicule._count.pleinsCarburant > 0
+
+    if (hasRelations) {
+      // Désactiver le véhicule au lieu de le supprimer
+      await db.vehicule.update({
+        where: { id },
+        data: { actif: false }
+      })
+
+      return NextResponse.json({
+        success: true,
+        action: 'deactivated',
+        message: 'Véhicule désactivé avec succès (relations existantes)',
+        relations: {
+          services: vehicule._count.services,
+          entretiens: vehicule._count.entretiens,
+          pleinsCarburant: vehicule._count.pleinsCarburant,
+        }
+      })
+    }
+
+    // Si pas de relations, on peut supprimer complètement
+    // 1. Supprimer les documents du véhicule
+    await db.documentVehicule.deleteMany({
+      where: { vehiculeId: id },
+    })
+
+    // 2. Supprimer le véhicule
     await db.vehicule.delete({
       where: { id },
     })
 
     return NextResponse.json({
       success: true,
+      action: 'deleted',
       message: 'Véhicule supprimé avec succès',
     })
   } catch (error) {

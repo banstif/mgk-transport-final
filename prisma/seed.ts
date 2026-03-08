@@ -12,6 +12,7 @@ async function main() {
     { cle: 'ENTREPRISE_NOM', valeur: 'MGK Transport' },
     { cle: 'ENTREPRISE_ICE', valeur: '001234567000089' },
     { cle: 'ENTREPRISE_ADRESSE', valeur: '123 Avenue Mohammed V, Casablanca, Maroc' },
+    { cle: 'ENTREPRISE_VILLE', valeur: 'Casablanca' },
     { cle: 'ENTREPRISE_TELEPHONE', valeur: '+212 522 123 456' },
     { cle: 'ENTREPRISE_EMAIL', valeur: 'contact@mgktransport.ma' },
     { cle: 'ENTREPRISE_RC', valeur: 'RC123456' },

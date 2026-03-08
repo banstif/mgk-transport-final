@@ -1,83 +1,101 @@
-// Parametres API Routes
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import type { ApiResponse, Parametre } from '@/types';
 
-// GET /api/parametres - Get all parametres
-export async function GET(
-  request: NextRequest
-): Promise<NextResponse<ApiResponse<Parametre[]>>> {
+// GET /api/parametres - Get all parameters as array
+export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
+    const { searchParams } = new URL(request.url);
     const cle = searchParams.get('cle');
 
-    const where: Record<string, unknown> = {};
-    
     if (cle) {
-      where.cle = { contains: cle, mode: 'insensitive' };
+      // Get specific parameter by cle
+      const param = await db.parametre.findFirst({
+        where: { cle },
+      });
+      
+      if (!param) {
+        return NextResponse.json({ success: true, data: [] });
+      }
+      
+      return NextResponse.json({ success: true, data: [param] });
     }
 
-    const parametres = await db.parametre.findMany({
-      where,
-      orderBy: { cle: 'asc' },
-    });
-
-    return NextResponse.json({
-      success: true,
-      data: parametres,
-    });
+    // Get all parameters as array
+    const params = await db.parametre.findMany();
+    
+    return NextResponse.json({ success: true, data: params });
   } catch (error) {
-    console.error('Error fetching parametres:', error);
+    console.error('Erreur lors de la récupération des paramètres:', error);
     return NextResponse.json(
-      { success: false, error: 'Erreur lors de la récupération des paramètres' },
+      { success: false, error: 'Erreur lors de la récupération des paramètres', data: [] },
       { status: 500 }
     );
   }
 }
 
-// POST /api/parametres - Create new parametre
-export async function POST(
-  request: NextRequest
-): Promise<NextResponse<ApiResponse<Parametre>>> {
+// POST /api/parametres - Create or update a parameter
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const data = await request.json();
     
-    // Validate required fields
-    if (!body.cle || body.valeur === undefined) {
+    if (!data.cle || data.valeur === undefined) {
       return NextResponse.json(
-        { success: false, error: 'Clé et valeur sont requises' },
+        { success: false, error: 'La clé et la valeur sont requises' },
         { status: 400 }
       );
     }
 
-    // Check if key already exists
-    const existingParam = await db.parametre.findUnique({
-      where: { cle: body.cle },
+    const param = await db.parametre.upsert({
+      where: { cle: data.cle },
+      update: { valeur: String(data.valeur) },
+      create: { cle: data.cle, valeur: String(data.valeur) },
     });
 
-    if (existingParam) {
+    return NextResponse.json({ success: true, data: param });
+  } catch (error) {
+    console.error('Erreur lors de la création du paramètre:', error);
+    return NextResponse.json(
+      { success: false, error: 'Erreur lors de la création du paramètre' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/parametres - Update multiple parameters at once
+export async function PUT(request: NextRequest) {
+  try {
+    const data = await request.json();
+    
+    if (typeof data !== 'object' || Array.isArray(data)) {
       return NextResponse.json(
-        { success: false, error: 'Un paramètre avec cette clé existe déjà' },
+        { success: false, error: 'Format de données invalide' },
         { status: 400 }
       );
     }
 
-    const parametre = await db.parametre.create({
-      data: {
-        cle: body.cle,
-        valeur: String(body.valeur),
-      },
-    });
+    const updates = [];
+    for (const [cle, valeur] of Object.entries(data)) {
+      if (typeof valeur === 'string') {
+        updates.push(
+          db.parametre.upsert({
+            where: { cle },
+            update: { valeur },
+            create: { cle, valeur },
+          })
+        );
+      }
+    }
+
+    await Promise.all(updates);
 
     return NextResponse.json({
       success: true,
-      data: parametre,
-      message: 'Paramètre créé avec succès',
-    }, { status: 201 });
+      message: 'Paramètres mis à jour avec succès',
+    });
   } catch (error) {
-    console.error('Error creating parametre:', error);
+    console.error('Erreur lors de la mise à jour des paramètres:', error);
     return NextResponse.json(
-      { success: false, error: 'Erreur lors de la création du paramètre' },
+      { success: false, error: 'Erreur lors de la mise à jour des paramètres' },
       { status: 500 }
     );
   }

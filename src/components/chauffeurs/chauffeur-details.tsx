@@ -20,6 +20,8 @@ import {
   Shield,
   MoreHorizontal,
   Info,
+  FileCheck,
+  Download,
 } from "lucide-react";
 import { formatCurrency, formatDate, formatRIB } from "@/lib/format";
 import {
@@ -198,6 +200,9 @@ export function ChauffeurDetails({
   
   // Chauffeur delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  
+  // Attestation loading state
+  const [downloadingAttestation, setDownloadingAttestation] = useState(false);
 
   // Queries
   const { data: chauffeur, isLoading } = useChauffeur(chauffeurId || "");
@@ -428,6 +433,43 @@ export function ChauffeurDetails({
     }
   };
 
+  // Handle attestation download
+  const handleDownloadAttestation = async () => {
+    if (!chauffeur) return;
+    
+    setDownloadingAttestation(true);
+    try {
+      const response = await fetch(`/api/chauffeurs/${chauffeur.id}/attestation`);
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors de la génération de l\'attestation');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Attestation_Travail_${chauffeur.nom}_${chauffeur.prenom}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Succès",
+        description: "Attestation de travail téléchargée avec succès",
+      });
+    } catch {
+      toast({
+        title: "Erreur",
+        description: "Erreur lors du téléchargement de l'attestation",
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingAttestation(false);
+    }
+  };
+
   // Loading state
   if (isLoading || !chauffeur) {
     return (
@@ -482,7 +524,7 @@ export function ChauffeurDetails({
           </SheetHeader>
 
           {/* Action Buttons */}
-          <div className="flex gap-2 mt-6">
+          <div className="flex gap-2 mt-6 flex-wrap">
             <Button
               variant="outline"
               size="sm"
@@ -490,6 +532,19 @@ export function ChauffeurDetails({
             >
               <Edit className="mr-2 h-4 w-4" />
               Modifier
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadAttestation}
+              disabled={downloadingAttestation}
+            >
+              {downloadingAttestation ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileCheck className="mr-2 h-4 w-4" />
+              )}
+              Attestation
             </Button>
             <Button
               variant="outline"

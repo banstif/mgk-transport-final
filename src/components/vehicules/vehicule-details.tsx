@@ -50,6 +50,7 @@ import { formatCurrency, formatDate } from "@/lib/format"
 import { EntretienForm } from "./entretien-form"
 import { CarburantForm } from "./carburant-form"
 import { DocumentVehiculeForm } from "./document-vehicule-form"
+import { AchatVehiculeTab } from "./achat-vehicule-tab"
 import { useToast } from "@/hooks/use-toast"
 import { TypeDocumentVehicule } from "@/types"
 
@@ -119,12 +120,10 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
   const [deleteDocumentId, setDeleteDocumentId] = React.useState<string | null>(null)
   const [deleteDocumentDialogOpen, setDeleteDocumentDialogOpen] = React.useState(false)
   
-  const { data: response, isLoading, refetch } = useVehicule(vehiculeId || "")
+  const { data: vehicule, isLoading, refetch } = useVehicule(vehiculeId || "")
   const { data: documents = [], refetch: refetchDocuments } = useDocumentsVehicule(vehiculeId || "")
   const deleteVehicule = useDeleteVehicule()
   const deleteDocumentMutation = useDeleteDocumentVehicule()
-  
-  const vehicule = response?.data
   
   React.useEffect(() => {
     if (open && vehiculeId) {
@@ -354,8 +353,9 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
             
             {/* Tabs */}
             <Tabs defaultValue="informations" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="informations">Infos</TabsTrigger>
+                <TabsTrigger value="achat">Achat</TabsTrigger>
                 <TabsTrigger value="entretiens">Entretiens</TabsTrigger>
                 <TabsTrigger value="carburant">Carburant</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -443,6 +443,14 @@ export function VehiculeDetails({ vehiculeId, open, onOpenChange, onEdit, onRefr
                     </div>
                   </div>
                 )}
+              </TabsContent>
+              
+              {/* Achat Tab */}
+              <TabsContent value="achat" className="mt-4">
+                <AchatVehiculeTab 
+                  vehiculeId={vehiculeId} 
+                  onRefresh={handleRefreshData}
+                />
               </TabsContent>
               
               {/* Entretiens Tab */}

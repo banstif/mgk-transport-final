@@ -5,6 +5,7 @@ import { Truck, Plus, Pencil, Trash2, Search, User, Gauge, Wrench, Fuel, MoreHor
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
 import {
   Table,
   TableBody,
@@ -45,6 +46,8 @@ export function VehiculesList({ onAdd, onEdit, onView, refreshKey }: VehiculesLi
   const [page, setPage] = React.useState(1)
   const [deleteId, setDeleteId] = React.useState<string | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
+  const [deleteVehiculeData, setDeleteVehiculeData] = React.useState<any>(null)
+  const { toast } = useToast()
 
   const { data: response, isLoading, refetch } = useVehicules({ page, search })
   const deleteVehicule = useDeleteVehicule()
@@ -69,17 +72,37 @@ export function VehiculesList({ onAdd, onEdit, onView, refreshKey }: VehiculesLi
   const handleDelete = async () => {
     if (!deleteId) return
     try {
-      await deleteVehicule.mutateAsync(deleteId)
+      const result = await deleteVehicule.mutateAsync(deleteId)
       setDeleteDialogOpen(false)
       setDeleteId(null)
+      setDeleteVehiculeData(null)
       refetch()
+      
+      // Show appropriate toast message
+      if (result.action === 'deactivated') {
+        toast({
+          title: "Véhicule désactivé",
+          description: "Le véhicule a été désactivé car il a des relations (services, entretiens ou pleins de carburant).",
+        })
+      } else {
+        toast({
+          title: "Véhicule supprimé",
+          description: "Le véhicule a été supprimé avec succès.",
+        })
+      }
     } catch (error) {
       console.error("Erreur suppression:", error)
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Erreur lors de la suppression du véhicule.",
+      })
     }
   }
 
-  const confirmDelete = (id: string) => {
-    setDeleteId(id)
+  const confirmDelete = (vehicule: any) => {
+    setDeleteId(vehicule.id)
+    setDeleteVehiculeData(vehicule)
     setDeleteDialogOpen(true)
   }
 
@@ -190,11 +213,11 @@ export function VehiculesList({ onAdd, onEdit, onView, refreshKey }: VehiculesLi
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
-                          onClick={() => confirmDelete(vehicule.id)}
+                          onClick={() => confirmDelete(vehicule)}
                           className="text-destructive"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Supprimer
+                          {vehicule.actif ? "Supprimer" : "Supprimer définitivement"}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -234,13 +257,24 @@ export function VehiculesList({ onAdd, onEdit, onView, refreshKey }: VehiculesLi
         </div>
       )}
 
-      {/* Delete confirmation */}
+      {/* Delete/Deactivate confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer le véhicule ?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deleteVehiculeData?.actif !== false ? "Supprimer le véhicule ?" : "Supprimer définitivement ?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer ce véhicule ? Cette action est irréversible.
+              {deleteVehiculeData?.actif !== false ? (
+                <span>
+                  Si ce véhicule a des relations (services, entretiens, pleins de carburant), 
+                  il sera <strong>désactivé</strong> au lieu d'être supprimé pour préserver l'historique.
+                </span>
+              ) : (
+                <span>
+                  Ce véhicule est inactif et n'a pas de relations. Il sera <strong>supprimé définitivement</strong>.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -249,7 +283,7 @@ export function VehiculesList({ onAdd, onEdit, onView, refreshKey }: VehiculesLi
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Supprimer
+              Confirmer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

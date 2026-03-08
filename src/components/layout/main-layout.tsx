@@ -13,6 +13,7 @@ import {
   ChevronDown,
   LogOut,
   User,
+  CreditCard,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -50,6 +51,7 @@ const navigationItems = [
   { id: "chauffeurs", title: "Chauffeurs", icon: Users },
   { id: "vehicules", title: "Véhicules", icon: Truck },
   { id: "clients", title: "Clients", icon: Building2 },
+  { id: "charges", title: "Charges", icon: CreditCard },
   { id: "facturation", title: "Facturation", icon: FileText },
   { id: "alertes", title: "Alertes", icon: Bell },
   { id: "parametres", title: "Paramètres", icon: Settings },
@@ -61,6 +63,7 @@ const moduleTitles: Record<string, string> = {
   chauffeurs: "Gestion des Chauffeurs",
   vehicules: "Gestion des Véhicules",
   clients: "Gestion des Clients",
+  charges: "Gestion des Charges",
   facturation: "Facturation",
   alertes: "Alertes",
   parametres: "Paramètres",

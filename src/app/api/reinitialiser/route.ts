@@ -90,6 +90,11 @@ export async function POST(
     results.push({ table: 'Salaires', deleted: salaires.count });
     console.log(`[REINITIALISER] Deleted ${salaires.count} salaires`);
 
+    // 12b. Delete bulletins de paie
+    const bulletinsPaie = await db.bulletinPaie.deleteMany({});
+    results.push({ table: 'BulletinsPaie', deleted: bulletinsPaie.count });
+    console.log(`[REINITIALISER] Deleted ${bulletinsPaie.count} bulletinsPaie`);
+
     // 13. Delete primes
     const primes = await db.prime.deleteMany({});
     results.push({ table: 'Primes', deleted: primes.count });
