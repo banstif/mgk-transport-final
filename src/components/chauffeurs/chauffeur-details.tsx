@@ -81,6 +81,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SalairesTab } from "./salaires-tab";
 import { DocumentsTab } from "./documents-tab";
+import { BulletinsTab } from "./bulletins-tab";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -528,6 +529,10 @@ export function ChauffeurDetails({
                 <FileText className="mr-2 h-4 w-4" />
                 Documents
               </TabsTrigger>
+              <TabsTrigger value="bulletins">
+                <FileText className="mr-2 h-4 w-4" />
+                Bulletins
+              </TabsTrigger>
             </TabsList>
 
             {/* Informations Tab */}
@@ -855,6 +860,11 @@ export function ChauffeurDetails({
             {/* Documents Tab */}
             <TabsContent value="documents" className="mt-4">
               <DocumentsTab chauffeur={chauffeur} />
+            </TabsContent>
+
+            {/* Bulletins Tab */}
+            <TabsContent value="bulletins" className="mt-4">
+              <BulletinsTab chauffeur={chauffeur} />
             </TabsContent>
           </Tabs>
         </SheetContent>

@@ -370,6 +370,64 @@ export interface Parametre {
   updatedAt: Date;
 }
 
+// ==================== BULLETIN DE PAIE ====================
+
+export interface BulletinPaie {
+  id: string;
+  chauffeurId: string;
+  chauffeur?: Chauffeur;
+  mois: number;
+  annee: number;
+  
+  // Éléments de salaire
+  salaireBase: number;
+  heuresSupplementaires: number;
+  primeTrajet: number;
+  primeRendement: number;
+  indemniteDeplacement: number;
+  indemnitePanier: number;
+  autresPrimes: number;
+  
+  // Totaux
+  salaireBrut: number;
+  
+  // Retenues
+  cnss: number;
+  amo: number;
+  ir: number;
+  avanceSalaire: number;
+  autresRetenues: number;
+  
+  totalRetenues: number;
+  salaireNet: number;
+  
+  // Métadonnées
+  dateGeneration: Date;
+  imprime: boolean;
+  dateImpression?: Date | null;
+  
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BulletinPaieFormData {
+  chauffeurId: string;
+  mois: number;
+  annee: number;
+  salaireBase: number;
+  heuresSupplementaires?: number;
+  primeTrajet?: number;
+  primeRendement?: number;
+  indemniteDeplacement?: number;
+  indemnitePanier?: number;
+  autresPrimes?: number;
+  cnss?: number;
+  amo?: number;
+  ir?: number;
+  avanceSalaire?: number;
+  autresRetenues?: number;
+}
+
 // ==================== FORM DATA TYPES ====================
 
 export interface ChauffeurFormData {

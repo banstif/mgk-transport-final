@@ -68,6 +68,7 @@ model Chauffeur {
   avances           Avance[]
   documents         DocumentChauffeur[]
   tournées          Tournee[]
+  bulletinsPaie     BulletinPaie[]
 }
 
 enum TypeContrat {
@@ -383,4 +384,46 @@ model Parametre {
   cle       String   @unique
   valeur    String
   updatedAt DateTime @updatedAt
+}
+
+// ==================== BULLETINS DE PAIE ====================
+
+model BulletinPaie {
+  id                  String   @id @default(cuid())
+  chauffeurId         String
+  chauffeur           Chauffeur @relation(fields: [chauffeurId], references: [id])
+  mois                Int
+  annee               Int
+  
+  // Éléments de salaire
+  salaireBase         Float    // Salaire de base
+  heuresSupplementaires Float  @default(0)  // Heures supplémentaires
+  primeTrajet         Float    @default(0)  // Prime de trajet
+  primeRendement      Float    @default(0)  // Prime de rendement
+  indemniteDeplacement Float   @default(0)  // Indemnité de déplacement
+  indemnitePanier     Float    @default(0)  // Indemnité panier
+  autresPrimes        Float    @default(0)  // Autres primes
+  
+  // Totaux
+  salaireBrut         Float    // Salaire brut
+  
+  // Retenues
+  cnss                Float    @default(0)  // Cotisation CNSS
+  amo                 Float    @default(0)  // Assurance Maladie Obligatoire
+  ir                  Float    @default(0)  // Impôt sur le revenu
+  avanceSalaire       Float    @default(0)  // Avance sur salaire
+  autresRetenues      Float    @default(0)  // Autres retenues
+  
+  totalRetenues       Float    // Total des retenues
+  salaireNet          Float    // Salaire net à payer
+  
+  // Métadonnées
+  dateGeneration      DateTime @default(now())
+  imprime            Boolean  @default(false)
+  dateImpression     DateTime?
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([chauffeurId, mois, annee])
 }

@@ -14,6 +14,7 @@ import type {
   TypeEntretienPersonnalise,
   ApiResponse,
   PaginatedResponse,
+  BulletinPaie,
 } from '@/types';
 
 // ==================== QUERY KEYS ====================
@@ -38,6 +39,8 @@ export const queryKeys = {
   avances: ['avances'] as const,
   salaires: ['salaires'] as const,
   documents: ['documents'] as const,
+  bulletinsPaie: ['bulletinsPaie'] as const,
+  bulletinPaie: (id: string) => [...queryKeys.bulletinsPaie, id] as const,
 };
 
 // ==================== API FETCHER UTILITIES ====================
@@ -1314,6 +1317,77 @@ export function useReinitialiser() {
     onSuccess: () => {
       // Invalidate all queries to refresh the UI
       queryClient.invalidateQueries();
+    },
+  });
+}
+
+// ==================== BULLETINS DE PAIE HOOKS ====================
+
+export function useBulletinsPaie(params?: {
+  chauffeurId?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return useQuery<PaginatedResponse<BulletinPaie>>({
+    queryKey: ['bulletinsPaie', 'list', params],
+    queryFn: () => {
+      const searchParams = new URLSearchParams();
+      if (params?.chauffeurId) searchParams.set('chauffeurId', params.chauffeurId);
+      if (params?.page) searchParams.set('page', String(params.page));
+      if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+      return fetchApi<PaginatedResponse<BulletinPaie>>(`/bulletins-paie?${searchParams.toString()}`);
+    },
+  });
+}
+
+export function useBulletinPaie(id: string) {
+  return useQuery<BulletinPaie>({
+    queryKey: queryKeys.bulletinPaie(id),
+    queryFn: async () => {
+      const response = await fetchApi<ApiResponse<BulletinPaie>>(`/bulletins-paie/${id}`);
+      if (!response.data) throw new Error('Bulletin non trouvé');
+      return response.data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateBulletinPaie() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) =>
+      fetchApi<ApiResponse<BulletinPaie>>('/bulletins-paie', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.bulletinsPaie });
+    },
+  });
+}
+
+export function useUpdateBulletinPaie() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      fetchApi<ApiResponse<BulletinPaie>>(`/bulletins-paie/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.bulletinPaie(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bulletinsPaie });
+    },
+  });
+}
+
+export function useDeleteBulletinPaie() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetchApi<ApiResponse<void>>(`/bulletins-paie/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.bulletinsPaie });
     },
   });
 }
