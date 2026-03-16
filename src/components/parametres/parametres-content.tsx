@@ -103,6 +103,7 @@ import { TypesEntretienSettings } from "./types-entretien-settings";
 import { CategoriesChargesSettings } from "./categories-charges-settings";
 import { UtilisateursSettings } from "./utilisateurs-settings";
 import { ChangePasswordModal } from "@/components/auth/change-password-modal";
+import { SauvegardeDonnees } from "./sauvegarde-donnees";
 import { 
   DateMode, 
   setDateMode, 
@@ -2269,7 +2270,8 @@ export function ParametresContent() {
     { value: "docs-vehicule", label: "Documents Véhicules", icon: Truck },
     { value: "types-entretien", label: "Types Entretiens", icon: Clock },
     { value: "categories-charges", label: "Catégories Charges", icon: CreditCard },
-    { value: "reinitialiser", label: "Réinitialiser", icon: Database, destructive: true },
+    { value: "sauvegarde", label: "Sauvegarde des données", icon: Database },
+    { value: "reinitialiser", label: "Réinitialiser", icon: RefreshCcw, destructive: true },
   ];
 
   // Get current section info
@@ -2296,6 +2298,8 @@ export function ParametresContent() {
         return <TypesEntretienSettings />;
       case "categories-charges":
         return <CategoriesChargesSettings />;
+      case "sauvegarde":
+        return <SauvegardeDonnees />;
       case "reinitialiser":
         return <ReinitialisationSettings />;
       default:
