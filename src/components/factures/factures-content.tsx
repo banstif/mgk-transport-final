@@ -56,6 +56,7 @@ export function FacturesContent() {
   };
 
   const handleAddPaiement = (factureId: string) => {
+    setDetailsOpen(false);
     setSelectedFactureId(factureId);
     setPaiementOpen(true);
   };
@@ -82,6 +83,7 @@ export function FacturesContent() {
         onAddFacture={handleAddFacture}
         onEditFacture={handleEditFacture}
         onViewFacture={handleViewFacture}
+        onAddPaiement={handleAddPaiement}
       />
 
       {/* Form Dialog */}

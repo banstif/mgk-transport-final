@@ -130,7 +130,7 @@ export function FactureForm({
       dateEmission: new Date().toISOString().split("T")[0],
       dateEcheance: "",
       montantHT: 0,
-      tauxTVA: 0,
+      tauxTVA: 20,
     },
   });
 
@@ -183,7 +183,7 @@ export function FactureForm({
           dateEmission: new Date().toISOString().split("T")[0],
           dateEcheance: "",
           montantHT: 0,
-          tauxTVA: 0,
+          tauxTVA: 20,
         });
       }
     }

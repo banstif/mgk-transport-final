@@ -431,6 +431,12 @@ enum EtatPaiement {
   PAYE
 }
 
+enum StatutService {
+  EN_ATTENTE      // Service en attente d'exploitation
+  EN_COURS        // Service en cours par le chauffeur
+  TERMINE         // Service terminé
+}
+
 model ExploitationService {
   id                String        @id @default(cuid())
   clientId          String                              // Client
@@ -443,7 +449,8 @@ model ExploitationService {
   chauffeur         Chauffeur @relation(fields: [chauffeurId], references: [id])
   dateHeureDepart   DateTime @default(now())            // Date et heure de départ
   nombreSalaries    Int       @default(1)               // Nombre de salariés transportés
-  completed         Boolean   @default(false)           // Service effectué
+  statut            StatutService @default(EN_ATTENTE)  // Statut du service
+  completed         Boolean   @default(false)           // Service effectué (compatibilité)
   etatPaiement      EtatPaiement @default(NON_PAYE)     // État de paiement
   factureId         String?                             // Facture associée (si facturée)
   facture           Facture? @relation(fields: [factureId], references: [id])
@@ -609,6 +616,24 @@ model Parametre {
   cle       String   @unique
   valeur    String
   updatedAt DateTime @updatedAt
+}
+
+// ==================== ENTREPRISE ====================
+
+model Entreprise {
+  id              String   @id @default(cuid())
+  nom             String                    // Nom de l'entreprise
+  logo            String?                   // Chemin du logo
+  adresse         String?                   // Adresse complète
+  telephone       String?                   // Téléphone
+  email           String?                   // Email
+  siteWeb         String?                   // Site web
+  siret           String?                   // Numéro SIRET/ICE
+  tvaIntracommunautaire String?             // Numéro TVA intracommunautaire
+  rib             String?                   // RIB bancaire
+  banque          String?                   // Nom de la banque
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // ==================== BULLETINS DE PAIE ====================

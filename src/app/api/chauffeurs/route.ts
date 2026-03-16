@@ -281,7 +281,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     
     // Create default user account for the chauffeur
     const defaultPassword = cin; // Use CIN as default password
-    const userEmail = `${nom.toLowerCase()}.${prenom.toLowerCase()}@chauffeur.mgktransport.ma`;
+    const userEmail = `${nom.toLowerCase()}.${prenom.toLowerCase()}@mgktransport.ma`;
     
     try {
       // Check if email already exists

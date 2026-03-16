@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Download,
   Loader2,
+  CreditCard,
 } from "lucide-react";
 import { useFactures, useDeleteFacture, useClients } from "@/hooks/use-queries";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -89,12 +90,14 @@ interface FacturesListProps {
   onAddFacture?: () => void;
   onEditFacture?: (facture: Facture) => void;
   onViewFacture?: (facture: Facture) => void;
+  onAddPaiement?: (factureId: string) => void;
 }
 
 export function FacturesList({
   onAddFacture,
   onEditFacture,
   onViewFacture,
+  onAddPaiement,
 }: FacturesListProps) {
   // State
   const [search, setSearch] = useState("");
@@ -399,15 +402,26 @@ export function FacturesList({
                             </DropdownMenuItem>
                             {facture.statut !== StatutFacture.PAYEE && 
                              facture.statut !== StatutFacture.ANNULEE && (
-                              <DropdownMenuItem
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onEditFacture?.(facture);
-                                }}
-                              >
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Modifier
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onAddPaiement?.(facture.id);
+                                  }}
+                                >
+                                  <CreditCard className="mr-2 h-4 w-4" />
+                                  Paiement
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEditFacture?.(facture);
+                                  }}
+                                >
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Modifier
+                                </DropdownMenuItem>
+                              </>
                             )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem

@@ -4,14 +4,14 @@ import { db } from '@/lib/db';
 import { cookies } from 'next/headers';
 import type { ApiResponse } from '@/types';
 
-// PUT /api/chauffeur/services/[id] - Update service (mark as completed)
+// PUT /api/chauffeur/services/[id] - Update service (start or complete)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse<ApiResponse<unknown>>> {
   try {
     const { id } = await params;
-    
+
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get('session_token')?.value;
 
@@ -35,7 +35,7 @@ export async function PUT(
     }
 
     const sessionData = JSON.parse(session.valeur);
-    
+
     if (new Date(sessionData.expiresAt) < new Date()) {
       return NextResponse.json(
         { success: false, error: 'Session expirée' },
@@ -84,15 +84,26 @@ export async function PUT(
 
     // Get update data
     const body = await request.json();
-    const { completed, notes } = body;
+    const { statut, notes } = body;
 
-    // Update service
+    // Determine completed based on statut
+    // Note: statut field will be updated via raw query or default
+    const isCompleted = statut === 'TERMINE';
+
+    // Update service - using completed field only for now
+    // statut is updated separately via raw SQL if needed
+    const updateData: Record<string, unknown> = {
+      completed: isCompleted,
+    };
+
+    if (notes !== undefined) {
+      updateData.notes = notes;
+    }
+
+    // Update the service
     const updatedService = await db.exploitationService.update({
       where: { id },
-      data: {
-        completed: completed ?? service.completed,
-        notes: notes ?? service.notes,
-      },
+      data: updateData,
       include: {
         client: {
           select: {
@@ -121,10 +132,21 @@ export async function PUT(
       },
     });
 
+    // Also update statut via raw query since Prisma client doesn't have it yet
+    if (statut) {
+      await db.$executeRaw`UPDATE ExploitationService SET statut = ${statut} WHERE id = ${id}`;
+    }
+
+    const messages: Record<string, string> = {
+      'EN_ATTENTE': 'Service remis en attente',
+      'EN_COURS': 'Service démarré',
+      'TERMINE': 'Service terminé',
+    };
+
     return NextResponse.json({
       success: true,
       data: updatedService,
-      message: completed ? 'Service marqué comme terminé' : 'Service mis à jour',
+      message: statut ? messages[statut] : 'Service mis à jour',
     });
   } catch (error) {
     console.error('Erreur mise à jour service:', error);

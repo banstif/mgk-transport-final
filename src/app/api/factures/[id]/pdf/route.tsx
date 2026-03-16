@@ -62,7 +62,12 @@ const styles = StyleSheet.create({
     borderBottomStyle: 'solid',
   },
   logoSection: {
-    width: '40%',
+    width: '45%',
+  },
+  logoImage: {
+    width: 120,
+    height: 50,
+    objectFit: 'contain',
   },
   logoText: {
     fontSize: 24,
@@ -77,10 +82,14 @@ const styles = StyleSheet.create({
   companyInfo: {
     fontSize: 8,
     color: '#6b7280',
-    marginTop: 8,
+    marginTop: 6,
+  },
+  companyInfoRow: {
+    flexDirection: 'row',
+    marginTop: 2,
   },
   invoiceTitle: {
-    width: '40%',
+    width: '45%',
     alignItems: 'flex-end',
   },
   titleText: {
@@ -193,11 +202,12 @@ const styles = StyleSheet.create({
     color: '#0066cc',
     fontWeight: 'bold',
   },
-  colDate: { width: '15%' },
-  colService: { width: '35%' },
-  colVehicle: { width: '15%' },
-  colDriver: { width: '15%' },
-  colAmount: { width: '20%', textAlign: 'right' },
+  colDate: { width: '12%' },
+  colService: { width: '28%' },
+  colVehicle: { width: '13%' },
+  colDriver: { width: '13%' },
+  colNbr: { width: '12%', textAlign: 'center' },
+  colAmount: { width: '22%', textAlign: 'right' },
   totalsSection: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -282,12 +292,44 @@ const styles = StyleSheet.create({
 });
 
 // PDF Document Component
-const FacturePDF = ({ facture, totalPaid, remainingAmount }: { 
-  facture: any; 
-  totalPaid: number;
-  remainingAmount: number;
+const FacturePDF = ({ facture, entreprise }: { 
+  facture: any;
+  entreprise: Record<string, string | null>;
 }) => {
   const statusColor = getStatusColor(facture.statut);
+  
+  // Group exploitations by service and calculate totals
+  const groupedServices: Record<string, {
+    serviceId: string;
+    serviceName: string;
+    lieuDepart: string | null;
+    lieuArrive: string | null;
+    tarif: number;
+    count: number;
+    totalMontant: number;
+  }> = {};
+  
+  if (facture.exploitations) {
+    facture.exploitations.forEach((exp: any) => {
+      const serviceId = exp.serviceId;
+      if (!groupedServices[serviceId]) {
+        groupedServices[serviceId] = {
+          serviceId,
+          serviceName: exp.service?.nomService || '-',
+          lieuDepart: exp.service?.lieuDepart || null,
+          lieuArrive: exp.service?.lieuArrive || null,
+          tarif: exp.service?.tarif || 0,
+          count: 0,
+          totalMontant: 0,
+        };
+      }
+      groupedServices[serviceId].count += 1;
+      groupedServices[serviceId].totalMontant += exp.service?.tarif || 0;
+    });
+  }
+  
+  // Convert to array for rendering
+  const servicesArray = Object.values(groupedServices);
   
   return (
     <Document>
@@ -295,10 +337,39 @@ const FacturePDF = ({ facture, totalPaid, remainingAmount }: {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoSection}>
-            <Text style={styles.logoText}>MGK TRANSPORT</Text>
-            <Text style={styles.logoSubtext}>Transport de personnel & Services logistiques</Text>
-            <Text style={styles.companyInfo}>Tel: +212 XXX XXX XXX | Email: contact@mgktransport.ma</Text>
-            <Text style={styles.companyInfo}>Adresse: [Adresse de l'entreprise]</Text>
+            {entreprise?.ENTREPRISE_LOGO ? (
+              <Image style={styles.logoImage} src={entreprise.ENTREPRISE_LOGO} />
+            ) : (
+              <Text style={styles.logoText}>{entreprise?.ENTREPRISE_NOM || 'MGK TRANSPORT'}</Text>
+            )}
+            <Text style={styles.logoSubtext}>Transport de personnel</Text>
+            
+            {/* Company Info */}
+            {entreprise && (
+              <View style={styles.companyInfo}>
+                {entreprise.ENTREPRISE_ADRESSE && (
+                  <Text>{entreprise.ENTREPRISE_ADRESSE}</Text>
+                )}
+                {entreprise.ENTREPRISE_VILLE && (
+                  <Text>{entreprise.ENTREPRISE_VILLE}</Text>
+                )}
+                {entreprise.ENTREPRISE_TELEPHONE && (
+                  <View style={styles.companyInfoRow}>
+                    <Text>Tél: {entreprise.ENTREPRISE_TELEPHONE}</Text>
+                  </View>
+                )}
+                {entreprise.ENTREPRISE_EMAIL && (
+                  <View style={styles.companyInfoRow}>
+                    <Text>Email: {entreprise.ENTREPRISE_EMAIL}</Text>
+                  </View>
+                )}
+                {entreprise.ENTREPRISE_ICE && (
+                  <View style={styles.companyInfoRow}>
+                    <Text>ICE: {entreprise.ENTREPRISE_ICE}</Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
           <View style={styles.invoiceTitle}>
             <Text style={styles.titleText}>FACTURE</Text>
@@ -340,35 +411,31 @@ const FacturePDF = ({ facture, totalPaid, remainingAmount }: {
         {/* Services Table */}
         <View style={styles.table}>
           <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderText, styles.colDate]}>Date</Text>
-            <Text style={[styles.tableHeaderText, styles.colService]}>Service / Trajet</Text>
-            <Text style={[styles.tableHeaderText, styles.colVehicle]}>Véhicule</Text>
-            <Text style={[styles.tableHeaderText, styles.colDriver]}>Chauffeur</Text>
-            <Text style={[styles.tableHeaderText, styles.colAmount]}>Montant</Text>
+            <Text style={[styles.tableHeaderText, { width: '50%' }]}>Service / Trajet</Text>
+            <Text style={[styles.tableHeaderText, { width: '15%', textAlign: 'center' }]}>Nbr Services</Text>
+            <Text style={[styles.tableHeaderText, { width: '15%', textAlign: 'right' }]}>Prix Unit.</Text>
+            <Text style={[styles.tableHeaderText, { width: '20%', textAlign: 'right' }]}>Montant Total</Text>
           </View>
           
-          {facture.exploitations && facture.exploitations.length > 0 ? (
-            facture.exploitations.map((exp: any, index: number) => (
-              <View key={exp.id} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
-                <Text style={[styles.tableCell, styles.colDate]}>
-                  {formatDateFR(exp.dateHeureDepart)}
-                </Text>
-                <View style={styles.colService}>
-                  <Text style={styles.tableCell}>{exp.service?.nomService || '-'}</Text>
-                  {exp.service?.lieuDepart && exp.service?.lieuArrive && (
+          {servicesArray.length > 0 ? (
+            servicesArray.map((service, index: number) => (
+              <View key={service.serviceId} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
+                <View style={{ width: '50%' }}>
+                  <Text style={styles.tableCell}>{service.serviceName}</Text>
+                  {service.lieuDepart && service.lieuArrive && (
                     <Text style={styles.tableCellSmall}>
-                      {exp.service.lieuDepart} → {exp.service.lieuArrive}
+                      {service.lieuDepart} → {service.lieuArrive}
                     </Text>
                   )}
                 </View>
-                <Text style={[styles.tableCell, styles.colVehicle]}>
-                  {exp.vehicule?.immatriculation || '-'}
+                <Text style={[styles.tableCell, { width: '15%', textAlign: 'center' }]}>
+                  {service.count}
                 </Text>
-                <Text style={[styles.tableCell, styles.colDriver]}>
-                  {exp.chauffeur?.prenom} {exp.chauffeur?.nom}
+                <Text style={[styles.tableCell, { width: '15%', textAlign: 'right' }]}>
+                  {formatCurrency(service.tarif)}
                 </Text>
-                <Text style={[styles.tableCellAmount, styles.colAmount]}>
-                  {formatCurrency(exp.service?.tarif || 0)}
+                <Text style={[styles.tableCellAmount, { width: '20%', textAlign: 'right' }]}>
+                  {formatCurrency(service.totalMontant)}
                 </Text>
               </View>
             ))
@@ -395,39 +462,8 @@ const FacturePDF = ({ facture, totalPaid, remainingAmount }: {
               <Text style={styles.totalMain}>Total TTC</Text>
               <Text style={styles.totalAmount}>{formatCurrency(facture.montantTTC)}</Text>
             </View>
-            {remainingAmount > 0 && facture.statut !== StatutFacture.PAYEE && (
-              <View style={styles.totalRow}>
-                <Text style={[styles.totalLabel, { color: '#ff6600' }]}>Reste à payer</Text>
-                <Text style={[styles.totalValue, { color: '#ff6600' }]}>{formatCurrency(remainingAmount)}</Text>
-              </View>
-            )}
           </View>
         </View>
-
-        {/* Payments History */}
-        {facture.paiements && facture.paiements.length > 0 && (
-          <View style={styles.paymentsSection}>
-            <Text style={styles.sectionTitle}>Historique des paiements</Text>
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.tableHeaderText, { width: '20%' }]}>Date</Text>
-                <Text style={[styles.tableHeaderText, { width: '20%' }]}>Mode</Text>
-                <Text style={[styles.tableHeaderText, { width: '35%' }]}>Référence</Text>
-                <Text style={[styles.tableHeaderText, { width: '25%', textAlign: 'right' }]}>Montant</Text>
-              </View>
-              {facture.paiements.map((paiement: any, index: number) => (
-                <View key={paiement.id} style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}>
-                  <Text style={[styles.tableCell, { width: '20%' }]}>{formatDateFR(paiement.date)}</Text>
-                  <Text style={[styles.tableCell, { width: '20%' }]}>{paiement.mode}</Text>
-                  <Text style={[styles.tableCell, { width: '35%' }]}>{paiement.reference || '-'}</Text>
-                  <Text style={[styles.tableCell, { width: '25%', textAlign: 'right', color: '#10B981' }]}>
-                    {formatCurrency(paiement.montant)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
 
         {/* Footer */}
         <View style={styles.footer}>
@@ -435,8 +471,16 @@ const FacturePDF = ({ facture, totalPaid, remainingAmount }: {
             Merci pour votre confiance. Pour toute question concernant cette facture, veuillez nous contacter.
           </Text>
           <Text style={styles.footerSmall}>
-            MGK Transport - SIRET: XXX XXX XXX XXXXX - TVA Intracommunautaire: FRXXXXXXXXXX
+            {entreprise?.ENTREPRISE_NOM || 'MGK Transport'} 
+            {entreprise?.ENTREPRISE_ICE && ` - ICE: ${entreprise.ENTREPRISE_ICE}`}
+            {entreprise?.ENTREPRISE_RC && ` | RC: ${entreprise.ENTREPRISE_RC}`}
+            {entreprise?.ENTREPRISE_IF && ` | IF: ${entreprise.ENTREPRISE_IF}`}
           </Text>
+          {entreprise?.ENTREPRISE_COMPTE_BANCAIRE && (
+            <Text style={styles.footerSmall}>
+              RIB: {entreprise.ENTREPRISE_COMPTE_BANCAIRE}
+            </Text>
+          )}
         </View>
       </Page>
     </Document>
@@ -498,16 +542,37 @@ export async function GET(
       );
     }
 
-    // Calculate totals
-    const totalPaid = facture.paiements.reduce((sum, p) => sum + p.montant, 0);
-    const remainingAmount = facture.montantTTC - totalPaid;
+    // Fetch entreprise info from Parametre table
+    const entrepriseKeys = [
+      'ENTREPRISE_NOM',
+      'ENTREPRISE_LOGO',
+      'ENTREPRISE_ADRESSE',
+      'ENTREPRISE_VILLE',
+      'ENTREPRISE_TELEPHONE',
+      'ENTREPRISE_EMAIL',
+      'ENTREPRISE_SITE_WEB',
+      'ENTREPRISE_ICE',
+      'ENTREPRISE_RC',
+      'ENTREPRISE_IF',
+      'ENTREPRISE_COMPTE_BANCAIRE',
+    ];
+
+    const entrepriseParams = await db.parametre.findMany({
+      where: {
+        cle: { in: entrepriseKeys },
+      },
+    });
+
+    const entreprise: Record<string, string | null> = {};
+    for (const param of entrepriseParams) {
+      entreprise[param.cle] = param.valeur;
+    }
 
     // Generate PDF using @react-pdf/renderer
     const pdfStream = await renderToStream(
       <FacturePDF 
-        facture={facture} 
-        totalPaid={totalPaid}
-        remainingAmount={remainingAmount}
+        facture={facture}
+        entreprise={entreprise}
       />
     );
 

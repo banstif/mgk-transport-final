@@ -144,10 +144,8 @@ export function FactureDetails({
     }
   };
 
-  // Calculate payment progress
+  // Calculate payment info
   const totalPaid = facture?.paiements?.reduce((sum, p) => sum + p.montant, 0) || 0;
-  const remainingAmount = facture ? facture.montantTTC - totalPaid : 0;
-  const paymentProgress = facture ? (totalPaid / facture.montantTTC) * 100 : 0;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -342,76 +340,38 @@ export function FactureDetails({
                 </Card>
               )}
 
-              {/* Payment Progress */}
+              {/* Payment Info - Simplifié */}
               {facture.statut !== StatutFacture.ANNULEE && (
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Suivi des paiements
+                      Paiement
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Progress bar */}
-                    <div className="space-y-2">
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-green-500 transition-all"
-                          style={{ width: `${Math.min(100, paymentProgress)}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-green-600">{formatCurrency(totalPaid)} payé</span>
-                        <span className={remainingAmount > 0 ? 'text-[#ff6600]' : 'text-green-600'}>
-                          {formatCurrency(remainingAmount)} restant
+                  <CardContent className="space-y-3">
+                    {facture.paiements && facture.paiements.length > 0 ? (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Mode de paiement</span>
+                          <span className="font-medium">
+                            {getModePaiementLabel(facture.paiements[0].mode)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Montant payé</span>
+                          <span className="font-semibold text-green-600">
+                            {formatCurrency(facture.montantTTC)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Montant à payer</span>
+                        <span className="font-semibold text-[#ff6600]">
+                          {formatCurrency(facture.montantTTC)}
                         </span>
                       </div>
-                    </div>
-
-                    {/* Add payment button */}
-                    {remainingAmount > 0 && (
-                      <Button
-                        onClick={handleAddPaiement}
-                        className="w-full bg-green-600 hover:bg-green-700"
-                      >
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Ajouter un paiement
-                      </Button>
                     )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Paiements */}
-              {facture.paiements && facture.paiements.length > 0 && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                      Historique des paiements
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Mode</TableHead>
-                          <TableHead>Réf.</TableHead>
-                          <TableHead className="text-right">Montant</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {facture.paiements.map((paiement) => (
-                          <TableRow key={paiement.id}>
-                            <TableCell>{formatDate(paiement.date)}</TableCell>
-                            <TableCell>{getModePaiementLabel(paiement.mode)}</TableCell>
-                            <TableCell className="font-mono text-xs">{paiement.reference || '-'}</TableCell>
-                            <TableCell className="text-right font-medium text-green-600">
-                              {formatCurrency(paiement.montant)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
                   </CardContent>
                 </Card>
               )}
@@ -419,10 +379,19 @@ export function FactureDetails({
               {/* Actions */}
               <div className="flex gap-2">
                 {facture.statut !== StatutFacture.PAYEE && facture.statut !== StatutFacture.ANNULEE && (
-                  <Button variant="outline" onClick={handleEdit} className="flex-1">
-                    <Edit className="mr-2 h-4 w-4" />
-                    Modifier
-                  </Button>
+                  <>
+                    <Button variant="outline" onClick={handleEdit} className="flex-1">
+                      <Edit className="mr-2 h-4 w-4" />
+                      Modifier
+                    </Button>
+                    <Button
+                      onClick={handleAddPaiement}
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                    >
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Paiement
+                    </Button>
+                  </>
                 )}
                 <Button 
                   onClick={handleDownloadPDF} 

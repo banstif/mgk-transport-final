@@ -120,6 +120,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PaginatedR
             lieuDepart: true,
             lieuArrive: true,
             heureDepart: true,
+            // tarif est EXCLU - le chauffeur ne voit pas le prix
           },
         },
         vehicule: {

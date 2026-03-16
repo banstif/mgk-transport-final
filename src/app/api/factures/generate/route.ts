@@ -51,7 +51,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         where: {
           id: { in: exploitationIds },
           clientId,
-          completed: true,
           factureId: null,
         },
         include: {
@@ -65,7 +64,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       exploitations = await db.exploitationService.findMany({
         where: {
           clientId,
-          completed: true,
           etatPaiement: EtatPaiement.NON_PAYE,
           factureId: null,
         },
@@ -86,7 +84,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
 
     // Calculate total
     const montantHT = exploitations.reduce((sum, exp) => sum + exp.service.tarif, 0);
-    const tva = tauxTVA ?? 0;  // Pas de TVA par défaut
+    const tva = tauxTVA ?? 20;  // TVA par défaut 20%
     const montantTVA = montantHT * (tva / 100);
     const montantTTC = montantHT + montantTVA;
 

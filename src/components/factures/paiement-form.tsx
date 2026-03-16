@@ -56,34 +56,31 @@ export function PaiementForm({
     },
   });
 
-  // Le hook useFacture retourne déjà les données directement (pas de .data)
   const { data: facture, isLoading: loadingFacture } = useFacture(factureId);
   const createMutation = useCreatePaiement();
 
-  // Calculate amounts
+  // Get total amount
   const montantTTC = facture?.montantTTC || 0;
-  const totalPaid = facture?.paiements?.reduce((sum, p) => sum + p.montant, 0) || 0;
-  const remainingAmount = montantTTC - totalPaid;
 
   // Reset form when dialog opens with facture data loaded
   React.useEffect(() => {
-    if (open && factureId && facture && remainingAmount > 0) {
+    if (open && factureId && facture) {
       reset({
         factureId,
-        montant: remainingAmount, // Par défaut le montant total restant
+        montant: montantTTC, // Toujours le montant total
         mode: ModePaiement.ESPECES,
         reference: "",
         date: new Date().toISOString().split("T")[0],
       });
     }
-  }, [open, factureId, facture, remainingAmount, reset]);
+  }, [open, factureId, facture, montantTTC, reset]);
 
   const onSubmit = async (data: PaiementFormData) => {
     try {
       const result = await createMutation.mutateAsync({
         factureId,
         data: {
-          montant: data.montant,
+          montant: montantTTC, // Toujours le montant total
           mode: data.mode,
           reference: data.reference,
           date: data.date,
@@ -99,14 +96,13 @@ export function PaiementForm({
     }
   };
 
-  const montant = watch("montant") || 0;
   const mode = watch("mode") || ModePaiement.ESPECES;
 
   // Don't render form content if facture is loading
   if (!facture && loadingFacture) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[450px]">
+        <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Loader2 className="h-5 w-5 animate-spin text-[#0066cc]" />
@@ -120,57 +116,26 @@ export function PaiementForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[450px]">
+      <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5 text-[#0066cc]" />
-            Enregistrer un paiement
+            Enregistrer le paiement
           </DialogTitle>
           <DialogDescription>
             Facture: {facture?.numero} - {facture?.client?.nomEntreprise}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Summary */}
-        <div className="rounded-lg border p-4 bg-muted/30 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Montant TTC:</span>
-            <span className="font-medium">{formatCurrency(montantTTC)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>Déjà payé:</span>
-            <span className="text-green-600">{formatCurrency(totalPaid)}</span>
-          </div>
-          <div className="flex justify-between text-base font-semibold border-t pt-2">
-            <span>Reste à payer:</span>
-            <span className="text-[#ff6600]">{formatCurrency(remainingAmount)}</span>
+        {/* Total Amount */}
+        <div className="rounded-lg border p-4 bg-muted/30">
+          <div className="flex justify-between text-lg font-semibold">
+            <span>Montant à payer:</span>
+            <span className="text-green-600">{formatCurrency(montantTTC)}</span>
           </div>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Montant */}
-          <div className="space-y-2">
-            <Label htmlFor="montant">
-              Montant du paiement <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="montant"
-              type="number"
-              step="0.01"
-              min="0.01"
-              max={remainingAmount}
-              {...register("montant", {
-                required: "Le montant est requis",
-                min: { value: 0.01, message: "Le montant doit être supérieur à 0" },
-                max: { value: remainingAmount, message: `Le montant ne peut pas dépasser ${formatCurrency(remainingAmount)}` },
-                valueAsNumber: true,
-              })}
-            />
-            {errors.montant && (
-              <p className="text-sm text-destructive">{errors.montant.message}</p>
-            )}
-          </div>
-
           {/* Mode de paiement */}
           <div className="space-y-2">
             <Label htmlFor="mode">
@@ -237,23 +202,6 @@ export function PaiementForm({
             )}
           </div>
 
-          {/* Preview */}
-          {montant > 0 && (
-            <div className="rounded-lg border p-3 bg-green-50 border-green-200">
-              <div className="flex justify-between text-sm">
-                <span>Nouveau reste à payer:</span>
-                <span className="font-medium text-green-700">
-                  {formatCurrency(Math.max(0, remainingAmount - montant))}
-                </span>
-              </div>
-              {remainingAmount - montant <= 0 && (
-                <p className="text-xs text-green-600 mt-1">
-                  ✓ La facture sera marquée comme payée
-                </p>
-              )}
-            </div>
-          )}
-
           <DialogFooter>
             <Button
               type="button"
@@ -273,7 +221,7 @@ export function PaiementForm({
                   Enregistrement...
                 </>
               ) : (
-                "Enregistrer le paiement"
+                "Confirmer le paiement"
               )}
             </Button>
           </DialogFooter>
