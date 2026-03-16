@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Validate backup structure
     if (!backup.version || !backup.data) {
       return NextResponse.json(
-        { success: false, error: 'Format de fichier invalide' },
+        { success: false, error: 'Format de fichier inval' },
         { status: 400 }
       );
     }
@@ -95,7 +95,10 @@ export async function POST(request: NextRequest) {
       await tx.parametre.deleteMany();
       await tx.utilisateur.deleteMany();
       
-      // Import data
+      // === IMPORT DATA IN CORRECT ORDER ===
+      // Order is critical due to foreign key constraints
+      
+      // 1. Independent entities first
       if (backup.data.parametres) {
         for (const item of backup.data.parametres) {
           await tx.parametre.create({ data: item });
@@ -131,18 +134,20 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      if (backup.data.utilisateurs) {
-        for (const item of backup.data.utilisateurs) {
-          await tx.utilisateur.create({ 
+      if (backup.data.alertes) {
+        for (const item of backup.data.alertes) {
+          await tx.alerte.create({ 
             data: {
               ...item,
-              role: item.role as Role,
+              type: item.type as TypeAlerte,
+              priority: item.priority as PrioriteAlerte,
             }
           });
-          stats.utilisateurs++;
+          stats.alertes++;
         }
       }
       
+      // 2. Import chauffeurs BEFORE utilisateurs (utilisateurs can reference chauffeurs)
       if (backup.data.chauffeurs) {
         for (const item of backup.data.chauffeurs) {
           await tx.chauffeur.create({ 
@@ -156,6 +161,28 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 3. Import utilisateurs (now chauffeurs exist for the foreign key)
+      if (backup.data.utilisateurs) {
+        for (const item of backup.data.utilisateurs) {
+          await tx.utilisateur.create({ 
+            data: {
+              id: item.id,
+              email: item.email,
+              motDePasse: item.motDePasse,
+              nom: item.nom,
+              prenom: item.prenom,
+              role: item.role as Role,
+              actif: item.actif,
+              chauffeurId: item.chauffeurId, // Now this will work because chauffeurs exist
+              createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
+              updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
+            }
+          });
+          stats.utilisateurs++;
+        }
+      }
+      
+      // 4. Import vehicules (can reference chauffeurs)
       if (backup.data.vehicules) {
         for (const item of backup.data.vehicules) {
           await tx.vehicule.create({ 
@@ -168,6 +195,55 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 5. Import clients
+      if (backup.data.clients) {
+        for (const item of backup.data.clients) {
+          await tx.client.create({ 
+            data: {
+              ...item,
+              typeContrat: item.typeContrat as TypeContratClient,
+            }
+          });
+          stats.clients++;
+        }
+      }
+      
+      // 6. Import services (reference clients)
+      if (backup.data.services) {
+        for (const item of backup.data.services) {
+          await tx.service.create({ 
+            data: {
+              ...item,
+              typeService: item.typeService as TypeService,
+            }
+          });
+          stats.services++;
+        }
+      }
+      
+      // 7. Import servicesVehicule (reference services and vehicules)
+      if (backup.data.servicesVehicule) {
+        for (const item of backup.data.servicesVehicule) {
+          await tx.serviceVehicule.create({ data: item });
+          stats.servicesVehicule++;
+        }
+      }
+      
+      // 8. Import charges
+      if (backup.data.charges) {
+        for (const item of backup.data.charges) {
+          await tx.charge.create({ 
+            data: {
+              ...item,
+              type: item.type as TypeCharge,
+              sourceType: item.sourceType as SourceCharge,
+            }
+          });
+          stats.charges++;
+        }
+      }
+      
+      // 9. Import achatsVehicule
       if (backup.data.achatsVehicule) {
         for (const item of backup.data.achatsVehicule) {
           await tx.achatVehicule.create({ 
@@ -182,6 +258,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 10. Import echeancesCredit
       if (backup.data.echeancesCredit) {
         for (const item of backup.data.echeancesCredit) {
           await tx.echeanceCredit.create({ 
@@ -194,6 +271,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 11. Import paiementsAchat
       if (backup.data.paiementsAchat) {
         for (const item of backup.data.paiementsAchat) {
           await tx.paiementAchat.create({ 
@@ -206,44 +284,20 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      if (backup.data.clients) {
-        for (const item of backup.data.clients) {
-          await tx.client.create({ 
+      // 12. Import factures (reference clients)
+      if (backup.data.factures) {
+        for (const item of backup.data.factures) {
+          await tx.facture.create({ 
             data: {
               ...item,
-              typeContrat: item.typeContrat as TypeContratClient,
+              statut: item.statut as StatutFacture,
             }
           });
-          stats.clients++;
+          stats.factures++;
         }
       }
       
-      if (backup.data.services) {
-        for (const item of backup.data.services) {
-          await tx.service.create({ 
-            data: {
-              ...item,
-              typeService: item.typeService as TypeService,
-            }
-          });
-          stats.services++;
-        }
-      }
-      
-      if (backup.data.servicesVehicule) {
-        for (const item of backup.data.servicesVehicule) {
-          await tx.serviceVehicule.create({ data: item });
-          stats.servicesVehicule++;
-        }
-      }
-      
-      if (backup.data.tournees) {
-        for (const item of backup.data.tournees) {
-          await tx.tournee.create({ data: item });
-          stats.tournees++;
-        }
-      }
-      
+      // 13. Import exploitations (reference client, service, vehicule, chauffeur, facture)
       if (backup.data.exploitations) {
         for (const item of backup.data.exploitations) {
           await tx.exploitationService.create({ 
@@ -257,18 +311,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      if (backup.data.factures) {
-        for (const item of backup.data.factures) {
-          await tx.facture.create({ 
-            data: {
-              ...item,
-              statut: item.statut as StatutFacture,
-            }
-          });
-          stats.factures++;
-        }
-      }
-      
+      // 14. Import paiements (reference facture, client)
       if (backup.data.paiements) {
         for (const item of backup.data.paiements) {
           await tx.paiement.create({ 
@@ -281,32 +324,15 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      if (backup.data.alertes) {
-        for (const item of backup.data.alertes) {
-          await tx.alerte.create({ 
-            data: {
-              ...item,
-              type: item.type as TypeAlerte,
-              priority: item.priority as PrioriteAlerte,
-            }
-          });
-          stats.alertes++;
+      // 15. Import tournees (reference service, chauffeur)
+      if (backup.data.tournees) {
+        for (const item of backup.data.tournees) {
+          await tx.tournee.create({ data: item });
+          stats.tournees++;
         }
       }
       
-      if (backup.data.charges) {
-        for (const item of backup.data.charges) {
-          await tx.charge.create({ 
-            data: {
-              ...item,
-              type: item.type as TypeCharge,
-              sourceType: item.sourceType as SourceCharge,
-            }
-          });
-          stats.charges++;
-        }
-      }
-      
+      // 16. Import salaires (reference chauffeurs)
       if (backup.data.salaires) {
         for (const item of backup.data.salaires) {
           await tx.salaire.create({ data: item });
@@ -314,6 +340,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 17. Import primes
       if (backup.data.primes) {
         for (const item of backup.data.primes) {
           await tx.prime.create({ data: item });
@@ -321,6 +348,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 18. Import avances
       if (backup.data.avances) {
         for (const item of backup.data.avances) {
           await tx.avance.create({ data: item });
@@ -328,6 +356,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 19. Import documentsChauffeur
       if (backup.data.documentsChauffeur) {
         for (const item of backup.data.documentsChauffeur) {
           await tx.documentChauffeur.create({ data: item });
@@ -335,6 +364,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 20. Import entretiens
       if (backup.data.entretiens) {
         for (const item of backup.data.entretiens) {
           await tx.entretien.create({ data: item });
@@ -342,6 +372,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 21. Import pleinsCarburant
       if (backup.data.pleinsCarburant) {
         for (const item of backup.data.pleinsCarburant) {
           await tx.pleinCarburant.create({ data: item });
@@ -349,6 +380,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 22. Import documentsVehicule
       if (backup.data.documentsVehicule) {
         for (const item of backup.data.documentsVehicule) {
           await tx.documentVehicule.create({ data: item });
@@ -356,6 +388,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 23. Import bulletinsPaie
       if (backup.data.bulletinsPaie) {
         for (const item of backup.data.bulletinsPaie) {
           await tx.bulletinPaie.create({ data: item });
@@ -363,6 +396,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
+      // 24. Import logs (reference utilisateurs)
       if (backup.data.logs) {
         for (const item of backup.data.logs) {
           await tx.log.create({ data: item });

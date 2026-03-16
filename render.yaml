@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: mgk-transport
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:render
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        value: file:./data.db
+      - key: NEXTAUTH_URL
+        # Will be set automatically by Render
+        fromService:
+          type: web
+          name: mgk-transport
+          property: url
+      - key: NEXTAUTH_SECRET
+        generateValue: true
